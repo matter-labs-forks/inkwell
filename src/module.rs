@@ -20,7 +20,7 @@ use llvm_sys::execution_engine::{
     LLVMCreateExecutionEngineForModule, LLVMCreateInterpreterForModule,
     LLVMCreateJITCompilerForModule,
 };
-use llvm_sys::prelude::{LLVMModuleRef, LLVMValueRef};
+use llvm_sys::prelude::{LLVMModuleRef, LLVMTypeRef, LLVMValueRef};
 use llvm_sys::LLVMLinkage;
 #[llvm_versions(7.0..=latest)]
 use llvm_sys::LLVMModuleFlagBehavior;
@@ -321,15 +321,30 @@ impl<'ctx> Module<'ctx> {
     /// let context = Context::create();
     /// let module = context.create_module("my_module");
     ///
-    /// assert!(module.get_intrinsic_function("llvm.syncvm.switchcontext").is_some());
+    /// assert!(module.get_intrinsic_function("llvm.syncvm.sload", &[]).is_some());
     /// ```
-    pub fn get_intrinsic_function(&self, name: &str) -> Option<FunctionValue<'ctx>> {
+    pub fn get_intrinsic_function<T: BasicType<'ctx>>(
+        &self,
+        name: &str,
+        param_types: &[T],
+    ) -> Option<FunctionValue<'ctx>> {
         let c_string = to_c_str(name);
 
         let id = unsafe { LLVMLookupIntrinsicID(c_string.as_ptr(), name.len()) };
 
-        let value =
-            unsafe { LLVMGetIntrinsicDeclaration(self.module.get(), id, std::ptr::null_mut(), 0) };
+        let mut param_types: Vec<LLVMTypeRef> = param_types
+            .iter()
+            .map(|r#type| r#type.as_type_ref())
+            .collect();
+
+        let value = unsafe {
+            LLVMGetIntrinsicDeclaration(
+                self.module.get(),
+                id,
+                param_types.as_mut_ptr(),
+                param_types.len(),
+            )
+        };
 
         if value.is_null() {
             return None;
