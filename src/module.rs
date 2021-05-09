@@ -20,6 +20,7 @@ use llvm_sys::execution_engine::{
     LLVMCreateExecutionEngineForModule, LLVMCreateInterpreterForModule,
     LLVMCreateJITCompilerForModule,
 };
+use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::prelude::{LLVMModuleRef, LLVMTypeRef, LLVMValueRef};
 use llvm_sys::LLVMLinkage;
 #[llvm_versions(7.0..=latest)]
@@ -1122,7 +1123,77 @@ impl<'ctx> Module<'ctx> {
         Some(GlobalValue::new(value))
     }
 
-    /// Creates a new `Module` from a `MemoryBuffer`.
+    /// Creates a new `Module` from a `MemoryBuffer` with IR.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use inkwell::context::Context;
+    /// use inkwell::module::Module;
+    /// use inkwell::memory_buffer::MemoryBuffer;
+    /// use std::path::Path;
+    ///
+    /// let path = Path::new("foo/bar.ll");
+    /// let context = Context::create();
+    /// let buffer = MemoryBuffer::create_from_file(&path).unwrap();
+    /// let module = Module::parse_ir_from_buffer(&buffer, &context);
+    ///
+    /// assert_eq!(*module.unwrap().get_context(), context);
+    ///
+    /// ```
+    pub fn parse_ir_from_buffer(
+        buffer: &MemoryBuffer,
+        context: &'ctx Context,
+    ) -> Result<Self, LLVMString> {
+        let mut module = MaybeUninit::uninit();
+        let mut err_string = MaybeUninit::uninit();
+
+        #[allow(deprecated)]
+            let success = unsafe {
+            LLVMParseIRInContext(
+                context.context,
+                buffer.memory_buffer,
+                module.as_mut_ptr(),
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        if success != 0 {
+            let err_string = unsafe { err_string.assume_init() };
+            return Err(LLVMString::new(err_string));
+        }
+
+        let module = unsafe { module.assume_init() };
+
+        Ok(Module::new(module))
+    }
+
+    /// A convenience function for creating a `Module` from an IR file for a given context.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use inkwell::context::Context;
+    /// use inkwell::module::Module;
+    /// use std::path::Path;
+    ///
+    /// let path = Path::new("foo/bar.ll");
+    /// let context = Context::create();
+    /// let module = Module::parse_ir_from_path(&path, &context);
+    ///
+    /// assert_eq!(*module.unwrap().get_context(), context);
+    ///
+    /// ```
+    pub fn parse_ir_from_path<P: AsRef<Path>>(
+        path: P,
+        context: &'ctx Context,
+    ) -> Result<Self, LLVMString> {
+        let buffer = MemoryBuffer::create_from_file(path.as_ref())?;
+
+        Self::parse_ir_from_buffer(&buffer, &context)
+    }
+
+    /// Creates a new `Module` from a `MemoryBuffer` with bitcode.
     ///
     /// # Example
     ///
@@ -1170,7 +1241,7 @@ impl<'ctx> Module<'ctx> {
         Ok(Module::new(module))
     }
 
-    /// A convenience function for creating a `Module` from a file for a given context.
+    /// A convenience function for creating a `Module` from a bitcode file for a given context.
     ///
     /// # Example
     ///
