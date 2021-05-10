@@ -611,7 +611,7 @@ impl<'ctx> Module<'ctx> {
     /// let context = Context::create();
     /// let module = context.create_module("mod");
     /// let i8_type = context.i8_type();
-    /// let global = module.add_global(i8_type, Some(AddressSpace::Const), "my_global");
+    /// let global = module.add_global(i8_type, Some(AddressSpace::Four), "my_global");
     ///
     /// assert_eq!(module.get_first_global().unwrap(), global);
     /// assert_eq!(module.get_last_global().unwrap(), global);
@@ -1052,7 +1052,7 @@ impl<'ctx> Module<'ctx> {
     ///
     /// assert!(module.get_first_global().is_none());
     ///
-    /// let global = module.add_global(i8_type, Some(AddressSpace::Const), "my_global");
+    /// let global = module.add_global(i8_type, Some(AddressSpace::Four), "my_global");
     ///
     /// assert_eq!(module.get_first_global().unwrap(), global);
     /// ```
@@ -1080,7 +1080,7 @@ impl<'ctx> Module<'ctx> {
     ///
     /// assert!(module.get_last_global().is_none());
     ///
-    /// let global = module.add_global(i8_type, Some(AddressSpace::Const), "my_global");
+    /// let global = module.add_global(i8_type, Some(AddressSpace::Four), "my_global");
     ///
     /// assert_eq!(module.get_last_global().unwrap(), global);
     /// ```
@@ -1108,7 +1108,7 @@ impl<'ctx> Module<'ctx> {
     ///
     /// assert!(module.get_global("my_global").is_none());
     ///
-    /// let global = module.add_global(i8_type, Some(AddressSpace::Const), "my_global");
+    /// let global = module.add_global(i8_type, Some(AddressSpace::Four), "my_global");
     ///
     /// assert_eq!(module.get_global("my_global").unwrap(), global);
     /// ```
@@ -1148,8 +1148,7 @@ impl<'ctx> Module<'ctx> {
         let mut module = MaybeUninit::uninit();
         let mut err_string = MaybeUninit::uninit();
 
-        #[allow(deprecated)]
-            let success = unsafe {
+        let success = unsafe {
             LLVMParseIRInContext(
                 context.context,
                 buffer.memory_buffer,
@@ -1222,7 +1221,7 @@ impl<'ctx> Module<'ctx> {
         // hasen't yet been removed even in LLVM 8. Seems fine to use instead of switching to their
         // error diagnostics handler for now.
         #[allow(deprecated)]
-            let success = unsafe {
+        let success = unsafe {
             LLVMParseBitcodeInContext(
                 context.context,
                 buffer.memory_buffer,
