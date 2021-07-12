@@ -1,11 +1,11 @@
-use llvm_sys::core::{LLVMGetPointerAddressSpace, LLVMConstArray};
+use llvm_sys::core::{LLVMConstArray, LLVMGetPointerAddressSpace};
 use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
 
-use crate::AddressSpace;
 use crate::context::ContextRef;
 use crate::types::traits::AsTypeRef;
-use crate::types::{AnyTypeEnum, BasicTypeEnum, ArrayType, FunctionType, Type, VectorType};
-use crate::values::{AsValueRef, ArrayValue, PointerValue, IntValue};
+use crate::types::{AnyTypeEnum, ArrayType, BasicTypeEnum, FunctionType, Type, VectorType};
+use crate::values::{ArrayValue, AsValueRef, IntValue, PointerValue};
+use crate::AddressSpace;
 
 use std::convert::TryFrom;
 
@@ -109,7 +109,11 @@ impl<'ctx> PointerType<'ctx> {
     /// let f32_ptr_type = f32_type.ptr_type(AddressSpace::Zero);
     /// let fn_type = f32_ptr_type.fn_type(&[], false);
     /// ```
-    pub fn fn_type(self, param_types: &[BasicTypeEnum<'ctx>], is_var_args: bool) -> FunctionType<'ctx> {
+    pub fn fn_type(
+        self,
+        param_types: &[BasicTypeEnum<'ctx>],
+        is_var_args: bool,
+    ) -> FunctionType<'ctx> {
         self.ptr_type.fn_type(param_types, is_var_args)
     }
 
@@ -148,9 +152,7 @@ impl<'ctx> PointerType<'ctx> {
     /// assert_eq!(f32_ptr_type.get_address_space(), AddressSpace::Zero);
     /// ```
     pub fn get_address_space(self) -> AddressSpace {
-        let addr_space = unsafe {
-            LLVMGetPointerAddressSpace(self.as_type_ref())
-        };
+        let addr_space = unsafe { LLVMGetPointerAddressSpace(self.as_type_ref()) };
 
         AddressSpace::try_from(addr_space).expect("Unexpectedly found invalid AddressSpace value")
     }
@@ -275,12 +277,9 @@ impl<'ctx> PointerType<'ctx> {
     /// assert!(f32_ptr_array.is_const());
     /// ```
     pub fn const_array(self, values: &[PointerValue<'ctx>]) -> ArrayValue<'ctx> {
-        let mut values: Vec<LLVMValueRef> = values.iter()
-                                                  .map(|val| val.as_value_ref())
-                                                  .collect();
-        let value = unsafe {
-            LLVMConstArray(self.as_type_ref(), values.as_mut_ptr(), values.len() as u32)
-        };
+        let mut values: Vec<LLVMValueRef> = values.iter().map(|val| val.as_value_ref()).collect();
+        let value =
+            unsafe { LLVMConstArray(self.as_type_ref(), values.as_mut_ptr(), values.len() as u32) };
 
         ArrayValue::new(value)
     }

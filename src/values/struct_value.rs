@@ -47,7 +47,8 @@ impl<'ctx> StructValue<'ctx> {
     }
 
     pub fn replace_all_uses_with(self, other: StructValue<'ctx>) {
-        self.struct_value.replace_all_uses_with(other.as_value_ref())
+        self.struct_value
+            .replace_all_uses_with(other.as_value_ref())
     }
 }
 

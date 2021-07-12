@@ -671,23 +671,23 @@ impl<'ctx> Module<'ctx> {
     /// `write_bitcode_to_path` should be preferred over this method, as it does not work on all operating systems.
     pub fn write_bitcode_to_file(&self, file: &File, should_close: bool, unbuffered: bool) -> bool {
         #[cfg(unix)]
-            {
-                use llvm_sys::bit_writer::LLVMWriteBitcodeToFD;
-                use std::os::unix::io::AsRawFd;
+        {
+            use llvm_sys::bit_writer::LLVMWriteBitcodeToFD;
+            use std::os::unix::io::AsRawFd;
 
-                // REVIEW: as_raw_fd docs suggest it only works in *nix
-                // Also, should_close should maybe be hardcoded to true?
-                unsafe {
-                    LLVMWriteBitcodeToFD(
-                        self.module.get(),
-                        file.as_raw_fd(),
-                        should_close as i32,
-                        unbuffered as i32,
-                    ) == 0
-                }
+            // REVIEW: as_raw_fd docs suggest it only works in *nix
+            // Also, should_close should maybe be hardcoded to true?
+            unsafe {
+                LLVMWriteBitcodeToFD(
+                    self.module.get(),
+                    file.as_raw_fd(),
+                    should_close as i32,
+                    unbuffered as i32,
+                ) == 0
             }
+        }
         #[cfg(windows)]
-            return false;
+        return false;
     }
 
     /// Writes this `Module` to a `MemoryBuffer`.
@@ -738,13 +738,13 @@ impl<'ctx> Module<'ctx> {
 
     fn get_borrowed_data_layout(module: LLVMModuleRef) -> DataLayout {
         #[cfg(any(feature = "llvm3-6", feature = "llvm3-7", feature = "llvm3-8"))]
-            let data_layout = unsafe {
+        let data_layout = unsafe {
             use llvm_sys::core::LLVMGetDataLayout;
 
             LLVMGetDataLayout(module)
         };
         #[cfg(not(any(feature = "llvm3-6", feature = "llvm3-7", feature = "llvm3-8")))]
-            let data_layout = unsafe {
+        let data_layout = unsafe {
             use llvm_sys::core::LLVMGetDataLayoutStr;
 
             LLVMGetDataLayoutStr(module)
@@ -853,41 +853,41 @@ impl<'ctx> Module<'ctx> {
     /// Sets the inline assembly for the `Module`.
     pub fn set_inline_assembly(&self, asm: &str) {
         #[cfg(any(
-        feature = "llvm3-6",
-        feature = "llvm3-7",
-        feature = "llvm3-8",
-        feature = "llvm3-9",
-        feature = "llvm4-0",
-        feature = "llvm5-0",
-        feature = "llvm6-0"
+            feature = "llvm3-6",
+            feature = "llvm3-7",
+            feature = "llvm3-8",
+            feature = "llvm3-9",
+            feature = "llvm4-0",
+            feature = "llvm5-0",
+            feature = "llvm6-0"
         ))]
-            {
-                use llvm_sys::core::LLVMSetModuleInlineAsm;
+        {
+            use llvm_sys::core::LLVMSetModuleInlineAsm;
 
-                let c_string = to_c_str(asm);
+            let c_string = to_c_str(asm);
 
-                unsafe { LLVMSetModuleInlineAsm(self.module.get(), c_string.as_ptr()) }
-            }
+            unsafe { LLVMSetModuleInlineAsm(self.module.get(), c_string.as_ptr()) }
+        }
         #[cfg(not(any(
-        feature = "llvm3-6",
-        feature = "llvm3-7",
-        feature = "llvm3-8",
-        feature = "llvm3-9",
-        feature = "llvm4-0",
-        feature = "llvm5-0",
-        feature = "llvm6-0"
+            feature = "llvm3-6",
+            feature = "llvm3-7",
+            feature = "llvm3-8",
+            feature = "llvm3-9",
+            feature = "llvm4-0",
+            feature = "llvm5-0",
+            feature = "llvm6-0"
         )))]
-            {
-                use llvm_sys::core::LLVMSetModuleInlineAsm2;
+        {
+            use llvm_sys::core::LLVMSetModuleInlineAsm2;
 
-                unsafe {
-                    LLVMSetModuleInlineAsm2(
-                        self.module.get(),
-                        asm.as_ptr() as *const ::libc::c_char,
-                        asm.len(),
-                    )
-                }
+            unsafe {
+                LLVMSetModuleInlineAsm2(
+                    self.module.get(),
+                    asm.as_ptr() as *const ::libc::c_char,
+                    asm.len(),
+                )
             }
+        }
     }
 
     // REVIEW: Should module take ownership of metadata?
@@ -1389,52 +1389,52 @@ impl<'ctx> Module<'ctx> {
         }
 
         #[cfg(any(feature = "llvm3-6", feature = "llvm3-7"))]
-            {
-                use llvm_sys::linker::{LLVMLinkModules, LLVMLinkerMode};
+        {
+            use llvm_sys::linker::{LLVMLinkModules, LLVMLinkerMode};
 
-                let mut err_string = ptr::null_mut();
-                // As of 3.7, LLVMLinkerDestroySource is the only option
-                let mode = LLVMLinkerMode::LLVMLinkerDestroySource;
-                let code = unsafe {
-                    LLVMLinkModules(self.module.get(), other.module.get(), mode, &mut err_string)
-                };
+            let mut err_string = ptr::null_mut();
+            // As of 3.7, LLVMLinkerDestroySource is the only option
+            let mode = LLVMLinkerMode::LLVMLinkerDestroySource;
+            let code = unsafe {
+                LLVMLinkModules(self.module.get(), other.module.get(), mode, &mut err_string)
+            };
 
-                forget(other);
+            forget(other);
 
-                if code == 1 {
-                    Err(LLVMString::new(err_string))
-                } else {
-                    Ok(())
-                }
+            if code == 1 {
+                Err(LLVMString::new(err_string))
+            } else {
+                Ok(())
             }
+        }
         #[cfg(not(any(feature = "llvm3-6", feature = "llvm3-7")))]
-            {
-                use crate::support::error_handling::get_error_str_diagnostic_handler;
-                use libc::c_void;
-                use llvm_sys::linker::LLVMLinkModules2;
+        {
+            use crate::support::error_handling::get_error_str_diagnostic_handler;
+            use libc::c_void;
+            use llvm_sys::linker::LLVMLinkModules2;
 
-                let context = self.get_context();
+            let context = self.get_context();
 
-                let mut char_ptr: *mut ::libc::c_char = ptr::null_mut();
-                let char_ptr_ptr =
-                    &mut char_ptr as *mut *mut ::libc::c_char as *mut *mut c_void as *mut c_void;
+            let mut char_ptr: *mut ::libc::c_char = ptr::null_mut();
+            let char_ptr_ptr =
+                &mut char_ptr as *mut *mut ::libc::c_char as *mut *mut c_void as *mut c_void;
 
-                // Newer LLVM versions don't use an out ptr anymore which was really straightforward...
-                // Here we assign an error handler to extract the error message, if any, for us.
-                context.set_diagnostic_handler(get_error_str_diagnostic_handler, char_ptr_ptr);
+            // Newer LLVM versions don't use an out ptr anymore which was really straightforward...
+            // Here we assign an error handler to extract the error message, if any, for us.
+            context.set_diagnostic_handler(get_error_str_diagnostic_handler, char_ptr_ptr);
 
-                let code = unsafe { LLVMLinkModules2(self.module.get(), other.module.get()) };
+            let code = unsafe { LLVMLinkModules2(self.module.get(), other.module.get()) };
 
-                forget(other);
+            forget(other);
 
-                if code == 1 {
-                    debug_assert!(!char_ptr.is_null());
+            if code == 1 {
+                debug_assert!(!char_ptr.is_null());
 
-                    Err(LLVMString::new(char_ptr))
-                } else {
-                    Ok(())
-                }
+                Err(LLVMString::new(char_ptr))
+            } else {
+                Ok(())
             }
+        }
     }
 
     /// Gets the `Comdat` associated with a particular name. If it does not exist, it will be created.
@@ -1569,9 +1569,9 @@ impl<'ctx> Module<'ctx> {
             split_debug_inlining,
             debug_info_for_profiling,
             #[cfg(feature = "llvm11-0")]
-                sysroot,
+            sysroot,
             #[cfg(feature = "llvm11-0")]
-                sdk,
+            sdk,
         )
     }
 }

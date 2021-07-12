@@ -104,8 +104,9 @@ use crate::basic_block::BasicBlock;
 use crate::context::Context;
 pub use crate::debug_info::flags::{DIFlags, DIFlagsConstants};
 use crate::module::Module;
-use crate::values::{AsValueRef, BasicValueEnum, InstructionValue, PointerValue, MetadataValue};
+use crate::values::{AsValueRef, BasicValueEnum, InstructionValue, MetadataValue, PointerValue};
 
+use llvm_sys::core::LLVMMetadataAsValue;
 #[llvm_versions(8.0..=latest)]
 use llvm_sys::debuginfo::LLVMDIBuilderCreateTypedef;
 pub use llvm_sys::debuginfo::LLVMDWARFTypeEncoding;
@@ -126,9 +127,10 @@ use llvm_sys::debuginfo::{
     LLVMDITypeGetSizeInBits,
 };
 #[llvm_versions(8.0..=latest)]
-use llvm_sys::debuginfo::{LLVMDIBuilderCreateGlobalVariableExpression,LLVMDIBuilderCreateConstantValueExpression};
+use llvm_sys::debuginfo::{
+    LLVMDIBuilderCreateConstantValueExpression, LLVMDIBuilderCreateGlobalVariableExpression,
+};
 use llvm_sys::prelude::{LLVMDIBuilderRef, LLVMMetadataRef};
-use llvm_sys::core::LLVMMetadataAsValue;
 use std::convert::TryInto;
 use std::marker::PhantomData;
 
@@ -177,10 +179,8 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
         dwo_id: libc::c_uint,
         split_debug_inlining: bool,
         debug_info_for_profiling: bool,
-        #[cfg(feature = "llvm11-0")]
-        sysroot: &str,
-        #[cfg(feature = "llvm11-0")]
-        sdk: &str,
+        #[cfg(feature = "llvm11-0")] sysroot: &str,
+        #[cfg(feature = "llvm11-0")] sdk: &str,
     ) -> (Self, DICompileUnit<'ctx>) {
         let builder = unsafe {
             if allow_unresolved {
@@ -212,7 +212,7 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
             #[cfg(feature = "llvm11-0")]
             sysroot,
             #[cfg(feature = "llvm11-0")]
-            sdk
+            sdk,
         );
 
         (builder, cu)
@@ -244,55 +244,67 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
         dwo_id: libc::c_uint,
         split_debug_inlining: bool,
         debug_info_for_profiling: bool,
-        #[cfg(feature = "llvm11-0")]
-        sysroot: &str,
-        #[cfg(feature = "llvm11-0")]
-        sdk: &str,
+        #[cfg(feature = "llvm11-0")] sysroot: &str,
+        #[cfg(feature = "llvm11-0")] sdk: &str,
     ) -> DICompileUnit<'ctx> {
-
         let metadata_ref = unsafe {
-            #[cfg(any(feature = "llvm3-6", feature = "llvm3-7", feature = "llvm3-8", feature = "llvm3-9",
-                  feature = "llvm4-0", feature = "llvm5-0", feature = "llvm6-0", feature = "llvm7-0", feature = "llvm8-0", feature= "llvm9-0", feature= "llvm10-0"))]
-            { LLVMDIBuilderCreateCompileUnit(
-                self.builder,
-                language.into(),
-                file.metadata_ref,
-                producer.as_ptr() as _,
-                producer.len(),
-                is_optimized as _,
-                flags.as_ptr() as _,
-                flags.len(),
-                runtime_ver,
-                split_name.as_ptr() as _,
-                split_name.len(),
-                kind.into(),
-                dwo_id,
-                split_debug_inlining as _,
-                debug_info_for_profiling as _,
-            ) }
+            #[cfg(any(
+                feature = "llvm3-6",
+                feature = "llvm3-7",
+                feature = "llvm3-8",
+                feature = "llvm3-9",
+                feature = "llvm4-0",
+                feature = "llvm5-0",
+                feature = "llvm6-0",
+                feature = "llvm7-0",
+                feature = "llvm8-0",
+                feature = "llvm9-0",
+                feature = "llvm10-0"
+            ))]
+            {
+                LLVMDIBuilderCreateCompileUnit(
+                    self.builder,
+                    language.into(),
+                    file.metadata_ref,
+                    producer.as_ptr() as _,
+                    producer.len(),
+                    is_optimized as _,
+                    flags.as_ptr() as _,
+                    flags.len(),
+                    runtime_ver,
+                    split_name.as_ptr() as _,
+                    split_name.len(),
+                    kind.into(),
+                    dwo_id,
+                    split_debug_inlining as _,
+                    debug_info_for_profiling as _,
+                )
+            }
 
             #[cfg(feature = "llvm11-0")]
-             { LLVMDIBuilderCreateCompileUnit(
-                self.builder,
-                language.into(),
-                file.metadata_ref,
-                producer.as_ptr() as _,
-                producer.len(),
-                is_optimized as _,
-                flags.as_ptr() as _,
-                flags.len(),
-                runtime_ver,
-                split_name.as_ptr() as _,
-                split_name.len(),
-                kind.into(),
-                dwo_id,
-                split_debug_inlining as _,
-                debug_info_for_profiling as _,
-                sysroot.as_ptr() as _,
-                sysroot.len(),
-                sdk.as_ptr() as _,
-                sdk.len(),
-            )}
+            {
+                LLVMDIBuilderCreateCompileUnit(
+                    self.builder,
+                    language.into(),
+                    file.metadata_ref,
+                    producer.as_ptr() as _,
+                    producer.len(),
+                    is_optimized as _,
+                    flags.as_ptr() as _,
+                    flags.len(),
+                    runtime_ver,
+                    split_name.as_ptr() as _,
+                    split_name.len(),
+                    kind.into(),
+                    dwo_id,
+                    split_debug_inlining as _,
+                    debug_info_for_profiling as _,
+                    sysroot.as_ptr() as _,
+                    sysroot.len(),
+                    sdk.as_ptr() as _,
+                    sdk.len(),
+                )
+            }
         };
 
         DICompileUnit {
@@ -431,8 +443,7 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
         name: &str,
         size_in_bits: u64,
         encoding: LLVMDWARFTypeEncoding,
-        #[cfg(not(feature = "llvm7-0"))]
-        flags: DIFlags,
+        #[cfg(not(feature = "llvm7-0"))] flags: DIFlags,
     ) -> Result<DIBasicType<'ctx>, &'static str> {
         if name.is_empty() {
             // Also, LLVM returns the same type if you ask for the same
@@ -465,8 +476,7 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
         file: DIFile<'ctx>,
         line_no: u32,
         scope: DIScope<'ctx>,
-        #[cfg(not(any(feature = "llvm8-0", feature = "llvm9-0")))]
-        align_in_bits: u32,
+        #[cfg(not(any(feature = "llvm8-0", feature = "llvm9-0")))] align_in_bits: u32,
     ) -> DIDerivedType<'ctx> {
         let metadata_ref = unsafe {
             LLVMDIBuilderCreateTypedef(
@@ -677,16 +687,9 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
     }
 
     #[llvm_versions(8.0..=latest)]
-    pub fn create_constant_expression(
-        &self,
-        value : i64,
-    ) -> DIExpression<'ctx> {
-        let metadata_ref = unsafe {
-            LLVMDIBuilderCreateConstantValueExpression(
-                self.builder,
-                value,
-            )
-        };
+    pub fn create_constant_expression(&self, value: i64) -> DIExpression<'ctx> {
+        let metadata_ref =
+            unsafe { LLVMDIBuilderCreateConstantValueExpression(self.builder, value) };
 
         DIExpression {
             metadata_ref,
@@ -762,7 +765,7 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
         &self,
         scope: DIScope<'ctx>,
         name: &str,
-        export_symbols: bool
+        export_symbols: bool,
     ) -> DINamespace<'ctx> {
         let metadata_ref = unsafe {
             LLVMDIBuilderCreateNameSpace(
@@ -770,7 +773,7 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
                 scope.metadata_ref,
                 name.as_ptr() as _,
                 name.len(),
-                export_symbols as _
+                export_symbols as _,
             )
         };
         DINamespace {
@@ -795,7 +798,8 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
                 var_info
                     .map(|v| v.metadata_ref)
                     .unwrap_or(std::ptr::null_mut()),
-                expr.unwrap_or_else(|| self.create_expression(vec![])).metadata_ref,
+                expr.unwrap_or_else(|| self.create_expression(vec![]))
+                    .metadata_ref,
                 debug_loc.metadata_ref,
                 instruction.as_value_ref(),
             )
@@ -819,7 +823,8 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
                 var_info
                     .map(|v| v.metadata_ref)
                     .unwrap_or(std::ptr::null_mut()),
-                expr.unwrap_or_else(|| self.create_expression(vec![])).metadata_ref,
+                expr.unwrap_or_else(|| self.create_expression(vec![]))
+                    .metadata_ref,
                 debug_loc.metadata_ref,
                 block.basic_block,
             )
@@ -856,7 +861,8 @@ impl<'ctx> DebugInfoBuilder<'ctx> {
                 self.builder,
                 value.as_value_ref(),
                 var_info.metadata_ref,
-                expr.unwrap_or_else(|| self.create_expression(vec![])).metadata_ref,
+                expr.unwrap_or_else(|| self.create_expression(vec![]))
+                    .metadata_ref,
                 debug_loc.metadata_ref,
                 instruction.as_value_ref(),
             )
@@ -1146,11 +1152,9 @@ pub struct DIGlobalVariableExpression<'ctx> {
     _marker: PhantomData<&'ctx Context>,
 }
 
-impl <'ctx> DIGlobalVariableExpression<'ctx>  {
+impl<'ctx> DIGlobalVariableExpression<'ctx> {
     pub fn as_metadata_value(&self, context: &Context) -> MetadataValue<'ctx> {
-        let value = unsafe {
-            LLVMMetadataAsValue(context.context, self.metadata_ref)
-        };
+        let value = unsafe { LLVMMetadataAsValue(context.context, self.metadata_ref) };
         MetadataValue::new(value)
     }
 }
@@ -1164,8 +1168,8 @@ pub struct DIExpression<'ctx> {
 
 pub use flags::*;
 mod flags {
-    use llvm_sys::debuginfo::{LLVMDWARFEmissionKind, LLVMDWARFSourceLanguage};
     pub use llvm_sys::debuginfo::LLVMDIFlags as DIFlags;
+    use llvm_sys::debuginfo::{LLVMDWARFEmissionKind, LLVMDWARFSourceLanguage};
 
     pub trait DIFlagsConstants {
         const ZERO: Self;

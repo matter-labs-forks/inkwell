@@ -1,10 +1,10 @@
 use llvm_sys::target::{
     LLVMABIAlignmentOfType, LLVMABISizeOfType, LLVMByteOrder, LLVMByteOrdering,
     LLVMCallFrameAlignmentOfType, LLVMCopyStringRepOfTargetData, LLVMCreateTargetData,
-    LLVMDisposeTargetData, LLVMElementAtOffset,
-    LLVMIntPtrTypeForASInContext, LLVMIntPtrTypeInContext, LLVMOffsetOfElement, LLVMPointerSize,
-    LLVMPointerSizeForAS, LLVMPreferredAlignmentOfGlobal, LLVMPreferredAlignmentOfType,
-    LLVMSizeOfTypeInBits, LLVMStoreSizeOfType, LLVMTargetDataRef,
+    LLVMDisposeTargetData, LLVMElementAtOffset, LLVMIntPtrTypeForASInContext,
+    LLVMIntPtrTypeInContext, LLVMOffsetOfElement, LLVMPointerSize, LLVMPointerSizeForAS,
+    LLVMPreferredAlignmentOfGlobal, LLVMPreferredAlignmentOfType, LLVMSizeOfTypeInBits,
+    LLVMStoreSizeOfType, LLVMTargetDataRef,
 };
 #[llvm_versions(4.0..=latest)]
 use llvm_sys::target_machine::LLVMCreateTargetDataLayout;
@@ -102,16 +102,14 @@ pub struct TargetTriple {
 
 impl TargetTriple {
     pub(crate) fn new(triple: LLVMString) -> TargetTriple {
-        TargetTriple {
-            triple,
-        }
+        TargetTriple { triple }
     }
 
     pub fn create(triple: &str) -> TargetTriple {
         let c_string = to_c_str(triple);
 
         TargetTriple {
-            triple: LLVMString::create_from_c_str(&c_string)
+            triple: LLVMString::create_from_c_str(&c_string),
         }
     }
 
@@ -1047,7 +1045,9 @@ impl Target {
 
         let code = {
             let _guard = TARGET_LOCK.read();
-            unsafe { LLVMGetTargetFromTriple(triple.as_ptr(), &mut target, err_string.as_mut_ptr()) }
+            unsafe {
+                LLVMGetTargetFromTriple(triple.as_ptr(), &mut target, err_string.as_mut_ptr())
+            }
         };
 
         if code == 1 {
@@ -1331,9 +1331,7 @@ impl TargetData {
     pub(crate) fn new(target_data: LLVMTargetDataRef) -> TargetData {
         assert!(!target_data.is_null());
 
-        TargetData {
-            target_data,
-        }
+        TargetData { target_data }
     }
 
     /// Gets the `IntType` representing a bit width of a pointer. It will be assigned the referenced context.
@@ -1353,7 +1351,9 @@ impl TargetData {
     /// let target_data = execution_engine.get_target_data();
     /// let int_type = target_data.ptr_sized_int_type_in_context(&context, None);
     /// ```
-    #[deprecated(note = "This method will be removed in the future. Please use Context::ptr_sized_int_type instead.")]
+    #[deprecated(
+        note = "This method will be removed in the future. Please use Context::ptr_sized_int_type instead."
+    )]
     pub fn ptr_sized_int_type_in_context<'ctx>(
         &self,
         context: &'ctx Context,

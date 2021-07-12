@@ -1,8 +1,8 @@
 extern crate inkwell;
 
-use self::inkwell::OptimizationLevel::Aggressive;
 use self::inkwell::context::Context;
-use self::inkwell::passes::{PassManagerBuilder, PassManager, PassRegistry};
+use self::inkwell::passes::{PassManager, PassManagerBuilder, PassRegistry};
+use self::inkwell::OptimizationLevel::Aggressive;
 
 #[test]
 fn test_init_all_passes_for_module() {
@@ -24,7 +24,13 @@ fn test_init_all_passes_for_module() {
     pass_manager.add_internalize_pass(true);
     pass_manager.add_strip_dead_prototypes_pass();
     pass_manager.add_strip_symbol_pass();
-    #[cfg(any(feature = "llvm3-6", feature = "llvm3-7", feature = "llvm3-8", feature = "llvm3-9", feature = "llvm4-0"))]
+    #[cfg(any(
+        feature = "llvm3-6",
+        feature = "llvm3-7",
+        feature = "llvm3-8",
+        feature = "llvm3-9",
+        feature = "llvm4-0"
+    ))]
     pass_manager.add_bb_vectorize_pass();
     pass_manager.add_loop_vectorize_pass();
     pass_manager.add_slp_vectorize_pass();
@@ -68,21 +74,41 @@ fn test_init_all_passes_for_module() {
     pass_manager.add_scoped_no_alias_aa_pass();
     pass_manager.add_basic_alias_analysis_pass();
 
-    #[cfg(not(any(feature = "llvm3-6", feature = "llvm3-7", feature = "llvm3-8", feature = "llvm3-9")))]
+    #[cfg(not(any(
+        feature = "llvm3-6",
+        feature = "llvm3-7",
+        feature = "llvm3-8",
+        feature = "llvm3-9"
+    )))]
     {
         pass_manager.add_early_cse_mem_ssa_pass();
         pass_manager.add_new_gvn_pass();
     }
 
-    #[cfg(not(any(feature = "llvm3-6", feature = "llvm3-7", feature = "llvm3-8", feature = "llvm3-9",
-                  feature = "llvm4-0", feature = "llvm5-0", feature = "llvm6-0")))]
+    #[cfg(not(any(
+        feature = "llvm3-6",
+        feature = "llvm3-7",
+        feature = "llvm3-8",
+        feature = "llvm3-9",
+        feature = "llvm4-0",
+        feature = "llvm5-0",
+        feature = "llvm6-0"
+    )))]
     {
         pass_manager.add_aggressive_inst_combiner_pass();
         pass_manager.add_loop_unroll_and_jam_pass();
     }
 
-    #[cfg(not(any(feature = "llvm3-6", feature = "llvm3-7", feature = "llvm3-8", feature = "llvm3-9",
-                  feature = "llvm4-0", feature = "llvm5-0", feature = "llvm6-0", feature = "llvm7-0")))]
+    #[cfg(not(any(
+        feature = "llvm3-6",
+        feature = "llvm3-7",
+        feature = "llvm3-8",
+        feature = "llvm3-9",
+        feature = "llvm4-0",
+        feature = "llvm5-0",
+        feature = "llvm6-0",
+        feature = "llvm7-0"
+    )))]
     {
         pass_manager.add_coroutine_early_pass();
         pass_manager.add_coroutine_split_pass();
@@ -139,9 +165,25 @@ fn test_pass_manager_builder() {
     let module2 = module.clone();
 
     // TODOC: In 3.6, 3.8, & 3.9 it returns false. Seems like a LLVM bug?
-    #[cfg(not(any(feature = "llvm3-7", feature = "llvm6-0", feature = "llvm7-0", feature = "llvm8-0", feature = "llvm9-0", feature = "llvm10-0", feature = "llvm11-0")))]
+    #[cfg(not(any(
+        feature = "llvm3-7",
+        feature = "llvm6-0",
+        feature = "llvm7-0",
+        feature = "llvm8-0",
+        feature = "llvm9-0",
+        feature = "llvm10-0",
+        feature = "llvm11-0"
+    )))]
     assert!(!module_pass_manager.run_on(&module));
-    #[cfg(any(feature = "llvm3-7", feature = "llvm6-0", feature = "llvm7-0", feature = "llvm8-0", feature = "llvm9-0", feature = "llvm10-0", feature = "llvm11-0"))]
+    #[cfg(any(
+        feature = "llvm3-7",
+        feature = "llvm6-0",
+        feature = "llvm7-0",
+        feature = "llvm8-0",
+        feature = "llvm9-0",
+        feature = "llvm10-0",
+        feature = "llvm11-0"
+    ))]
     assert!(module_pass_manager.run_on(&module));
 
     let lto_pass_manager = PassManager::create(());
@@ -167,7 +209,14 @@ fn test_pass_registry() {
     pass_registry.initialize_ipa();
     pass_registry.initialize_codegen();
     pass_registry.initialize_target();
-    #[cfg(not(any(feature = "llvm3-6", feature = "llvm3-7", feature = "llvm3-8", feature = "llvm3-9",
-                  feature = "llvm4-0", feature = "llvm5-0", feature = "llvm6-0")))]
+    #[cfg(not(any(
+        feature = "llvm3-6",
+        feature = "llvm3-7",
+        feature = "llvm3-8",
+        feature = "llvm3-9",
+        feature = "llvm4-0",
+        feature = "llvm5-0",
+        feature = "llvm6-0"
+    )))]
     pass_registry.initialize_aggressive_inst_combiner();
 }

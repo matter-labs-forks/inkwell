@@ -2,11 +2,16 @@ use llvm_sys::prelude::LLVMTypeRef;
 
 use std::fmt::Debug;
 
-use crate::AddressSpace;
-use crate::types::{IntType, FunctionType, FloatType, PointerType, StructType, ArrayType, VectorType, VoidType, Type};
-use crate::types::enums::{AnyTypeEnum, BasicTypeEnum};
-use crate::values::{IntMathValue, FloatMathValue, PointerMathValue, IntValue, FloatValue, PointerValue, VectorValue};
 use crate::support::LLVMString;
+use crate::types::enums::{AnyTypeEnum, BasicTypeEnum};
+use crate::types::{
+    ArrayType, FloatType, FunctionType, IntType, PointerType, StructType, Type, VectorType,
+    VoidType,
+};
+use crate::values::{
+    FloatMathValue, FloatValue, IntMathValue, IntValue, PointerMathValue, PointerValue, VectorValue,
+};
+use crate::AddressSpace;
 
 // This is an ugly privacy hack so that Type can stay private to this module
 // and so that super traits using this trait will be not be implementable
@@ -56,7 +61,11 @@ pub trait BasicType<'ctx>: AnyType<'ctx> {
     /// let int_basic_type = int.as_basic_type_enum();
     /// assert_eq!(int_basic_type.fn_type(&[], false), int.fn_type(&[], false));
     /// ```
-    fn fn_type(&self, param_types: &[BasicTypeEnum<'ctx>], is_var_args: bool) -> FunctionType<'ctx> {
+    fn fn_type(
+        &self,
+        param_types: &[BasicTypeEnum<'ctx>],
+        is_var_args: bool,
+    ) -> FunctionType<'ctx> {
         Type::new(self.as_type_ref()).fn_type(param_types, is_var_args)
     }
 

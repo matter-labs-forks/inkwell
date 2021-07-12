@@ -1,9 +1,11 @@
 use llvm_sys::core::LLVMGetTypeKind;
-use llvm_sys::LLVMTypeKind;
 use llvm_sys::prelude::LLVMTypeRef;
+use llvm_sys::LLVMTypeKind;
 
-use crate::types::{IntType, VoidType, FunctionType, PointerType, VectorType, ArrayType, StructType, FloatType};
 use crate::types::traits::AsTypeRef;
+use crate::types::{
+    ArrayType, FloatType, FunctionType, IntType, PointerType, StructType, VectorType, VoidType,
+};
 use crate::values::{BasicValue, BasicValueEnum, IntValue};
 
 use std::convert::TryFrom;
@@ -91,29 +93,31 @@ enum_type_set! {
 
 impl<'ctx> AnyTypeEnum<'ctx> {
     pub(crate) fn new(type_: LLVMTypeRef) -> Self {
-        let type_kind = unsafe {
-            LLVMGetTypeKind(type_)
-        };
+        let type_kind = unsafe { LLVMGetTypeKind(type_) };
 
         match type_kind {
             LLVMTypeKind::LLVMVoidTypeKind => AnyTypeEnum::VoidType(VoidType::new(type_)),
-            LLVMTypeKind::LLVMHalfTypeKind |
-            LLVMTypeKind::LLVMFloatTypeKind |
-            LLVMTypeKind::LLVMDoubleTypeKind |
-            LLVMTypeKind::LLVMX86_FP80TypeKind |
-            LLVMTypeKind::LLVMFP128TypeKind |
-            LLVMTypeKind::LLVMPPC_FP128TypeKind => AnyTypeEnum::FloatType(FloatType::new(type_)),
+            LLVMTypeKind::LLVMHalfTypeKind
+            | LLVMTypeKind::LLVMFloatTypeKind
+            | LLVMTypeKind::LLVMDoubleTypeKind
+            | LLVMTypeKind::LLVMX86_FP80TypeKind
+            | LLVMTypeKind::LLVMFP128TypeKind
+            | LLVMTypeKind::LLVMPPC_FP128TypeKind => AnyTypeEnum::FloatType(FloatType::new(type_)),
             #[cfg(feature = "llvm11-0")]
             LLVMTypeKind::LLVMBFloatTypeKind => AnyTypeEnum::FloatType(FloatType::new(type_)),
             LLVMTypeKind::LLVMLabelTypeKind => panic!("FIXME: Unsupported type: Label"),
             LLVMTypeKind::LLVMIntegerTypeKind => AnyTypeEnum::IntType(IntType::new(type_)),
-            LLVMTypeKind::LLVMFunctionTypeKind => AnyTypeEnum::FunctionType(FunctionType::new(type_)),
+            LLVMTypeKind::LLVMFunctionTypeKind => {
+                AnyTypeEnum::FunctionType(FunctionType::new(type_))
+            }
             LLVMTypeKind::LLVMStructTypeKind => AnyTypeEnum::StructType(StructType::new(type_)),
             LLVMTypeKind::LLVMArrayTypeKind => AnyTypeEnum::ArrayType(ArrayType::new(type_)),
             LLVMTypeKind::LLVMPointerTypeKind => AnyTypeEnum::PointerType(PointerType::new(type_)),
             LLVMTypeKind::LLVMVectorTypeKind => AnyTypeEnum::VectorType(VectorType::new(type_)),
             #[cfg(feature = "llvm11-0")]
-            LLVMTypeKind::LLVMScalableVectorTypeKind => AnyTypeEnum::VectorType(VectorType::new(type_)),
+            LLVMTypeKind::LLVMScalableVectorTypeKind => {
+                AnyTypeEnum::VectorType(VectorType::new(type_))
+            }
             LLVMTypeKind::LLVMMetadataTypeKind => panic!("FIXME: Unsupported type: Metadata"),
             LLVMTypeKind::LLVMX86_MMXTypeKind => panic!("FIXME: Unsupported type: MMX"),
             #[cfg(not(any(feature = "llvm3-6", feature = "llvm3-7")))]
@@ -238,31 +242,37 @@ impl<'ctx> AnyTypeEnum<'ctx> {
 
 impl<'ctx> BasicTypeEnum<'ctx> {
     pub(crate) fn new(type_: LLVMTypeRef) -> Self {
-        let type_kind = unsafe {
-            LLVMGetTypeKind(type_)
-        };
+        let type_kind = unsafe { LLVMGetTypeKind(type_) };
 
         match type_kind {
-            LLVMTypeKind::LLVMHalfTypeKind |
-            LLVMTypeKind::LLVMFloatTypeKind |
-            LLVMTypeKind::LLVMDoubleTypeKind |
-            LLVMTypeKind::LLVMX86_FP80TypeKind |
-            LLVMTypeKind::LLVMFP128TypeKind |
-            LLVMTypeKind::LLVMPPC_FP128TypeKind => BasicTypeEnum::FloatType(FloatType::new(type_)),
-            #[cfg(feature= "llvm11-0")]
+            LLVMTypeKind::LLVMHalfTypeKind
+            | LLVMTypeKind::LLVMFloatTypeKind
+            | LLVMTypeKind::LLVMDoubleTypeKind
+            | LLVMTypeKind::LLVMX86_FP80TypeKind
+            | LLVMTypeKind::LLVMFP128TypeKind
+            | LLVMTypeKind::LLVMPPC_FP128TypeKind => {
+                BasicTypeEnum::FloatType(FloatType::new(type_))
+            }
+            #[cfg(feature = "llvm11-0")]
             LLVMTypeKind::LLVMBFloatTypeKind => BasicTypeEnum::FloatType(FloatType::new(type_)),
             LLVMTypeKind::LLVMIntegerTypeKind => BasicTypeEnum::IntType(IntType::new(type_)),
             LLVMTypeKind::LLVMStructTypeKind => BasicTypeEnum::StructType(StructType::new(type_)),
-            LLVMTypeKind::LLVMPointerTypeKind => BasicTypeEnum::PointerType(PointerType::new(type_)),
+            LLVMTypeKind::LLVMPointerTypeKind => {
+                BasicTypeEnum::PointerType(PointerType::new(type_))
+            }
             LLVMTypeKind::LLVMArrayTypeKind => BasicTypeEnum::ArrayType(ArrayType::new(type_)),
             LLVMTypeKind::LLVMVectorTypeKind => BasicTypeEnum::VectorType(VectorType::new(type_)),
-            #[cfg(feature= "llvm11-0")]
-            LLVMTypeKind::LLVMScalableVectorTypeKind => BasicTypeEnum::VectorType(VectorType::new(type_)),
+            #[cfg(feature = "llvm11-0")]
+            LLVMTypeKind::LLVMScalableVectorTypeKind => {
+                BasicTypeEnum::VectorType(VectorType::new(type_))
+            }
             LLVMTypeKind::LLVMMetadataTypeKind => unreachable!("Unsupported basic type: Metadata"),
             LLVMTypeKind::LLVMX86_MMXTypeKind => unreachable!("Unsupported basic type: MMX"),
             LLVMTypeKind::LLVMLabelTypeKind => unreachable!("Unsupported basic type: Label"),
             LLVMTypeKind::LLVMVoidTypeKind => unreachable!("Unsupported basic type: VoidType"),
-            LLVMTypeKind::LLVMFunctionTypeKind => unreachable!("Unsupported basic type: FunctionType"),
+            LLVMTypeKind::LLVMFunctionTypeKind => {
+                unreachable!("Unsupported basic type: FunctionType")
+            }
             #[cfg(not(any(feature = "llvm3-6", feature = "llvm3-7")))]
             LLVMTypeKind::LLVMTokenTypeKind => unreachable!("Unsupported basic type: Token"),
         }

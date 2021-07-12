@@ -1,11 +1,11 @@
 use llvm_sys::core::{LLVMConstArray, LLVMGetArrayLength};
 use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
 
-use crate::AddressSpace;
 use crate::context::ContextRef;
 use crate::types::traits::AsTypeRef;
-use crate::types::{Type, BasicTypeEnum, PointerType, FunctionType};
-use crate::values::{AsValueRef, ArrayValue, IntValue};
+use crate::types::{BasicTypeEnum, FunctionType, PointerType, Type};
+use crate::values::{ArrayValue, AsValueRef, IntValue};
+use crate::AddressSpace;
 
 /// An `ArrayType` is the type of contiguous constants or variables.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -103,7 +103,11 @@ impl<'ctx> ArrayType<'ctx> {
     /// let i8_array_type = i8_type.array_type(3);
     /// let fn_type = i8_array_type.fn_type(&[], false);
     /// ```
-    pub fn fn_type(self, param_types: &[BasicTypeEnum<'ctx>], is_var_args: bool) -> FunctionType<'ctx> {
+    pub fn fn_type(
+        self,
+        param_types: &[BasicTypeEnum<'ctx>],
+        is_var_args: bool,
+    ) -> FunctionType<'ctx> {
         self.array_type.fn_type(param_types, is_var_args)
     }
 
@@ -141,12 +145,9 @@ impl<'ctx> ArrayType<'ctx> {
     /// assert!(f32_array_array.is_const());
     /// ```
     pub fn const_array(self, values: &[ArrayValue<'ctx>]) -> ArrayValue<'ctx> {
-        let mut values: Vec<LLVMValueRef> = values.iter()
-                                                  .map(|val| val.as_value_ref())
-                                                  .collect();
-        let value = unsafe {
-            LLVMConstArray(self.as_type_ref(), values.as_mut_ptr(), values.len() as u32)
-        };
+        let mut values: Vec<LLVMValueRef> = values.iter().map(|val| val.as_value_ref()).collect();
+        let value =
+            unsafe { LLVMConstArray(self.as_type_ref(), values.as_mut_ptr(), values.len() as u32) };
 
         ArrayValue::new(value)
     }
@@ -181,9 +182,7 @@ impl<'ctx> ArrayType<'ctx> {
     /// assert_eq!(i8_array_type.len(), 3);
     /// ```
     pub fn len(self) -> u32 {
-        unsafe {
-            LLVMGetArrayLength(self.as_type_ref())
-        }
+        unsafe { LLVMGetArrayLength(self.as_type_ref()) }
     }
 
     // See Type::print_to_stderr note on 5.0+ status
@@ -227,7 +226,6 @@ impl<'ctx> ArrayType<'ctx> {
     pub fn get_element_type(self) -> BasicTypeEnum<'ctx> {
         self.array_type.get_element_type().to_basic_type_enum()
     }
-
 }
 
 impl AsTypeRef for ArrayType<'_> {

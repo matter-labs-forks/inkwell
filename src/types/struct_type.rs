@@ -1,16 +1,19 @@
-use llvm_sys::core::{LLVMConstNamedStruct, LLVMCountStructElementTypes, LLVMGetStructElementTypes, LLVMGetStructName, LLVMIsPackedStruct, LLVMIsOpaqueStruct, LLVMStructSetBody, LLVMConstArray};
 #[llvm_versions(3.7..=latest)]
 use llvm_sys::core::LLVMStructGetTypeAtIndex;
+use llvm_sys::core::{
+    LLVMConstArray, LLVMConstNamedStruct, LLVMCountStructElementTypes, LLVMGetStructElementTypes,
+    LLVMGetStructName, LLVMIsOpaqueStruct, LLVMIsPackedStruct, LLVMStructSetBody,
+};
 use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
 
 use std::ffi::CStr;
 use std::mem::forget;
 
-use crate::AddressSpace;
 use crate::context::ContextRef;
 use crate::types::traits::AsTypeRef;
-use crate::types::{ArrayType, BasicTypeEnum, PointerType, FunctionType, Type};
-use crate::values::{ArrayValue, BasicValueEnum, StructValue, IntValue, AsValueRef};
+use crate::types::{ArrayType, BasicTypeEnum, FunctionType, PointerType, Type};
+use crate::values::{ArrayValue, AsValueRef, BasicValueEnum, IntValue, StructValue};
+use crate::AddressSpace;
 
 /// A `StructType` is the type of a heterogeneous container of types.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -54,13 +57,10 @@ impl<'ctx> StructType<'ctx> {
             return None;
         }
 
-        let type_ = unsafe {
-            LLVMStructGetTypeAtIndex(self.as_type_ref(), index)
-        };
+        let type_ = unsafe { LLVMStructGetTypeAtIndex(self.as_type_ref(), index) };
 
         Some(BasicTypeEnum::new(type_))
     }
-
 
     /// Creates a `StructValue` based on this `StructType`'s definition.
     ///
@@ -76,9 +76,7 @@ impl<'ctx> StructType<'ctx> {
     /// let struct_val = struct_type.const_named_struct(&[f32_zero.into()]);
     /// ```
     pub fn const_named_struct(self, values: &[BasicValueEnum<'ctx>]) -> StructValue<'ctx> {
-        let mut args: Vec<LLVMValueRef> = values.iter()
-                                                .map(|val| val.as_value_ref())
-                                                .collect();
+        let mut args: Vec<LLVMValueRef> = values.iter().map(|val| val.as_value_ref()).collect();
         let value = unsafe {
             LLVMConstNamedStruct(self.as_type_ref(), args.as_mut_ptr(), args.len() as u32)
         };
@@ -166,17 +164,13 @@ impl<'ctx> StructType<'ctx> {
     /// assert_eq!(struct_type.get_name().unwrap().to_str().unwrap(), "opaque_struct");
     /// ```
     pub fn get_name(&self) -> Option<&CStr> {
-        let name = unsafe {
-            LLVMGetStructName(self.as_type_ref())
-        };
+        let name = unsafe { LLVMGetStructName(self.as_type_ref()) };
 
         if name.is_null() {
             return None;
         }
 
-        let c_str = unsafe {
-            CStr::from_ptr(name)
-        };
+        let c_str = unsafe { CStr::from_ptr(name) };
 
         Some(c_str)
     }
@@ -212,7 +206,11 @@ impl<'ctx> StructType<'ctx> {
     /// let struct_type = context.struct_type(&[f32_type.into(), f32_type.into()], false);
     /// let fn_type = struct_type.fn_type(&[], false);
     /// ```
-    pub fn fn_type(self, param_types: &[BasicTypeEnum<'ctx>], is_var_args: bool) -> FunctionType<'ctx> {
+    pub fn fn_type(
+        self,
+        param_types: &[BasicTypeEnum<'ctx>],
+        is_var_args: bool,
+    ) -> FunctionType<'ctx> {
         self.struct_type.fn_type(param_types, is_var_args)
     }
 
@@ -249,9 +247,7 @@ impl<'ctx> StructType<'ctx> {
     /// assert!(struct_type.is_packed());
     /// ```
     pub fn is_packed(self) -> bool {
-        unsafe {
-            LLVMIsPackedStruct(self.as_type_ref()) == 1
-        }
+        unsafe { LLVMIsPackedStruct(self.as_type_ref()) == 1 }
     }
 
     /// Determines whether or not a `StructType` is opaque.
@@ -268,9 +264,7 @@ impl<'ctx> StructType<'ctx> {
     /// assert!(struct_type.is_opaque());
     /// ```
     pub fn is_opaque(self) -> bool {
-        unsafe {
-            LLVMIsOpaqueStruct(self.as_type_ref()) == 1
-        }
+        unsafe { LLVMIsOpaqueStruct(self.as_type_ref()) == 1 }
     }
 
     /// Counts the number of field types.
@@ -288,9 +282,7 @@ impl<'ctx> StructType<'ctx> {
     /// assert_eq!(struct_type.count_fields(), 2);
     /// ```
     pub fn count_fields(self) -> u32 {
-        unsafe {
-            LLVMCountStructElementTypes(self.as_type_ref())
-        }
+        unsafe { LLVMCountStructElementTypes(self.as_type_ref()) }
     }
 
     /// Gets this `StructType`'s field types.
@@ -370,12 +362,16 @@ impl<'ctx> StructType<'ctx> {
     /// ```
     pub fn set_body(self, field_types: &[BasicTypeEnum<'ctx>], packed: bool) -> bool {
         let is_opaque = self.is_opaque();
-        let mut field_types: Vec<LLVMTypeRef> = field_types.iter()
-                                                           .map(|val| val.as_type_ref())
-                                                           .collect();
+        let mut field_types: Vec<LLVMTypeRef> =
+            field_types.iter().map(|val| val.as_type_ref()).collect();
         if is_opaque {
             unsafe {
-                LLVMStructSetBody(self.as_type_ref(), field_types.as_mut_ptr(), field_types.len() as u32, packed as i32);
+                LLVMStructSetBody(
+                    self.as_type_ref(),
+                    field_types.as_mut_ptr(),
+                    field_types.len() as u32,
+                    packed as i32,
+                );
             }
         }
 
@@ -398,12 +394,9 @@ impl<'ctx> StructType<'ctx> {
     /// assert!(struct_array.is_const());
     /// ```
     pub fn const_array(self, values: &[StructValue<'ctx>]) -> ArrayValue<'ctx> {
-        let mut values: Vec<LLVMValueRef> = values.iter()
-                                                  .map(|val| val.as_value_ref())
-                                                  .collect();
-        let value = unsafe {
-            LLVMConstArray(self.as_type_ref(), values.as_mut_ptr(), values.len() as u32)
-        };
+        let mut values: Vec<LLVMValueRef> = values.iter().map(|val| val.as_value_ref()).collect();
+        let value =
+            unsafe { LLVMConstArray(self.as_type_ref(), values.as_mut_ptr(), values.len() as u32) };
 
         ArrayValue::new(value)
     }

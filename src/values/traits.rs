@@ -1,11 +1,17 @@
-use llvm_sys::prelude::LLVMValueRef;
 use llvm_sys::core::{LLVMConstExtractValue, LLVMConstInsertValue};
+use llvm_sys::prelude::LLVMValueRef;
 
 use std::fmt::Debug;
 
-use crate::values::{ArrayValue, AggregateValueEnum, BasicValueUse, CallSiteValue, GlobalValue, StructValue, BasicValueEnum, AnyValueEnum, IntValue, FloatValue, PointerValue, PhiValue, VectorValue, FunctionValue, InstructionValue, Value};
-use crate::types::{IntMathType, FloatMathType, PointerMathType, IntType, FloatType, PointerType, VectorType};
 use crate::support::LLVMString;
+use crate::types::{
+    FloatMathType, FloatType, IntMathType, IntType, PointerMathType, PointerType, VectorType,
+};
+use crate::values::{
+    AggregateValueEnum, AnyValueEnum, ArrayValue, BasicValueEnum, BasicValueUse, CallSiteValue,
+    FloatValue, FunctionValue, GlobalValue, InstructionValue, IntValue, PhiValue, PointerValue,
+    StructValue, Value, VectorValue,
+};
 
 // This is an ugly privacy hack so that Type can stay private to this module
 // and so that super traits using this trait will be not be implementable
@@ -50,16 +56,29 @@ pub trait AggregateValue<'ctx>: BasicValue<'ctx> {
     // REVIEW: Should this be AggregatePointerValue?
     fn const_extract_value(&self, indexes: &mut [u32]) -> BasicValueEnum<'ctx> {
         let value = unsafe {
-            LLVMConstExtractValue(self.as_value_ref(), indexes.as_mut_ptr(), indexes.len() as u32)
+            LLVMConstExtractValue(
+                self.as_value_ref(),
+                indexes.as_mut_ptr(),
+                indexes.len() as u32,
+            )
         };
 
         BasicValueEnum::new(value)
     }
 
     // SubTypes: value should really be T in self: VectorValue<T> I think
-    fn const_insert_value<BV: BasicValue<'ctx>>(&self, value: BV, indexes: &mut [u32]) -> BasicValueEnum<'ctx> {
+    fn const_insert_value<BV: BasicValue<'ctx>>(
+        &self,
+        value: BV,
+        indexes: &mut [u32],
+    ) -> BasicValueEnum<'ctx> {
         let value = unsafe {
-            LLVMConstInsertValue(self.as_value_ref(), value.as_value_ref(), indexes.as_mut_ptr(), indexes.len() as u32)
+            LLVMConstInsertValue(
+                self.as_value_ref(),
+                value.as_value_ref(),
+                indexes.as_mut_ptr(),
+                indexes.len() as u32,
+            )
         };
 
         BasicValueEnum::new(value)

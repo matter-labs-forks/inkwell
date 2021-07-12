@@ -1,5 +1,10 @@
-use either::{Either, Either::{Left, Right}};
-use llvm_sys::core::{LLVMGetNextUse, LLVMGetUser, LLVMGetUsedValue, LLVMIsABasicBlock, LLVMValueAsBasicBlock};
+use either::{
+    Either,
+    Either::{Left, Right},
+};
+use llvm_sys::core::{
+    LLVMGetNextUse, LLVMGetUsedValue, LLVMGetUser, LLVMIsABasicBlock, LLVMValueAsBasicBlock,
+};
 use llvm_sys::prelude::LLVMUseRef;
 
 use std::marker::PhantomData;
@@ -72,9 +77,7 @@ impl<'ctx> BasicValueUse<'ctx> {
     /// 1) In the store instruction
     /// 2) In the pointer bitcast
     pub fn get_next_use(self) -> Option<Self> {
-        let use_ = unsafe {
-            LLVMGetNextUse(self.0)
-        };
+        let use_ = unsafe { LLVMGetNextUse(self.0) };
 
         if use_.is_null() {
             return None;
@@ -116,9 +119,7 @@ impl<'ctx> BasicValueUse<'ctx> {
     /// assert_eq!(store_operand_use1.get_user(), store_instruction);
     /// ```
     pub fn get_user(self) -> AnyValueEnum<'ctx> {
-        let user = unsafe {
-            LLVMGetUser(self.0)
-        };
+        let user = unsafe { LLVMGetUser(self.0) };
 
         AnyValueEnum::new(user)
     }
@@ -161,18 +162,12 @@ impl<'ctx> BasicValueUse<'ctx> {
     /// assert_eq!(bitcast_use_value, free_operand0);
     /// ```
     pub fn get_used_value(self) -> Either<BasicValueEnum<'ctx>, BasicBlock<'ctx>> {
-        let used_value = unsafe {
-            LLVMGetUsedValue(self.0)
-        };
+        let used_value = unsafe { LLVMGetUsedValue(self.0) };
 
-        let is_basic_block = unsafe {
-            !LLVMIsABasicBlock(used_value).is_null()
-        };
+        let is_basic_block = unsafe { !LLVMIsABasicBlock(used_value).is_null() };
 
         if is_basic_block {
-            let used_value = unsafe {
-                LLVMValueAsBasicBlock(used_value)
-            };
+            let used_value = unsafe { LLVMValueAsBasicBlock(used_value) };
 
             Right(BasicBlock::new(used_value).expect("BasicBlock should be valid"))
         } else {
