@@ -6,6 +6,7 @@ use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
 use llvm_sys::error_handling::LLVMEnablePrettyStackTrace;
 use llvm_sys::support::LLVMLoadLibraryPermanently;
 use llvm_sys::support::LLVMParseCommandLineOptions;
+use llvm_sys::support::LLVMPrintCommitIDTo;
 
 use std::borrow::Cow;
 use std::error::Error;
@@ -140,6 +141,15 @@ pub fn load_library_permanently(filename: &str) -> bool {
     let filename = to_c_str(filename);
 
     unsafe { LLVMLoadLibraryPermanently(filename.as_ptr()) == 1 }
+}
+
+pub fn get_commit_id() -> LLVMString {
+    const COMMIT_HASH_LENGTH: usize = 40;
+
+    let mut buffer = vec![0u8; COMMIT_HASH_LENGTH + 1];
+
+    unsafe { LLVMPrintCommitIDTo(buffer.as_mut_ptr() as *mut ::libc::c_char) };
+    LLVMString::create_from_str(String::from_utf8_lossy(&buffer[..COMMIT_HASH_LENGTH + 1]).as_ref())
 }
 
 /// Determines whether or not LLVM has been configured to run in multithreaded mode. (Inkwell currently does
