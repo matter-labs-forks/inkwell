@@ -791,6 +791,45 @@ impl Target {
         }
     }
 
+    #[cfg(feature = "target-evm")]
+    pub fn initialize_evm(config: &InitializationConfig) {
+        use llvm_sys::target::{
+            LLVMInitializeEVMAsmParser, LLVMInitializeEVMAsmPrinter,
+            LLVMInitializeEVMDisassembler, LLVMInitializeEVMTarget,
+            LLVMInitializeEVMTargetInfo, LLVMInitializeEVMTargetMC,
+        };
+
+        if config.base {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMTarget() };
+        }
+
+        if config.info {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMTargetInfo() };
+        }
+
+        if config.asm_printer {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMAsmPrinter() };
+        }
+
+        if config.asm_parser {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMAsmParser() };
+        }
+
+        if config.disassembler {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMDisassembler() };
+        }
+
+        if config.machine_code {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMTargetMC() };
+        }
+    }
+
     pub fn initialize_native(config: &InitializationConfig) -> Result<(), String> {
         use llvm_sys::target::{
             LLVM_InitializeNativeAsmParser, LLVM_InitializeNativeAsmPrinter, LLVM_InitializeNativeDisassembler,
