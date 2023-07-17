@@ -814,15 +814,9 @@ impl Target {
             unsafe { LLVMInitializeEVMAsmPrinter() };
         }
 
-        if config.asm_parser {
-            let _guard = TARGET_LOCK.write();
-            unsafe { LLVMInitializeEVMAsmParser() };
-        }
+        // No asm parser
 
-        if config.disassembler {
-            let _guard = TARGET_LOCK.write();
-            unsafe { LLVMInitializeEVMDisassembler() };
-        }
+        // No disassembler
 
         if config.machine_code {
             let _guard = TARGET_LOCK.write();
