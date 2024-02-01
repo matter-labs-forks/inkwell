@@ -126,11 +126,19 @@ pub unsafe fn shutdown_llvm() {
 }
 
 pub fn parse_command_line_options(argc: i32, argv: &[&str], overview: &str) {
+    let argv: Vec<String> = argv
+        .into_iter()
+        .map(|arg| to_null_terminated_owned(*arg))
+        .collect();
     let argv: Vec<*const ::libc::c_char> = argv
         .iter()
-        .map(|arg| to_c_str(arg).as_ptr())
+        .map(|arg| {
+            to_c_str(arg.as_str()).as_ptr()
+        })
         .collect();
-    let overview = to_c_str(overview);
+
+    let overview = to_null_terminated_owned(overview);
+    let overview = to_c_str(overview.as_str());
 
     unsafe {
         LLVMParseCommandLineOptions(argc, argv.as_ptr(), overview.as_ptr());
@@ -138,7 +146,8 @@ pub fn parse_command_line_options(argc: i32, argv: &[&str], overview: &str) {
 }
 
 pub fn load_library_permanently(filename: &str) -> bool {
-    let filename = to_c_str(filename);
+    let filename = to_null_terminated_owned(filename);
+    let filename = to_c_str(filename.as_str());
 
     unsafe { LLVMLoadLibraryPermanently(filename.as_ptr()) == 1 }
 }
@@ -180,6 +189,15 @@ pub(crate) fn to_c_str<'s>(mut s: &'s str) -> Cow<'s, CStr> {
     }
 
     unsafe { Cow::from(CStr::from_ptr(s.as_ptr() as *const _)) }
+}
+
+/// Adds a null byte to the end of a Rust string if it doesn't already have one.
+pub(crate) fn to_null_terminated_owned(s: &str) -> String {
+    if let Some(p) = s.rfind('\0') {
+        s[..=p].to_string()
+    } else {
+        format!("{s}\0")
+    }
 }
 
 #[test]
