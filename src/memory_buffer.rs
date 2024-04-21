@@ -138,7 +138,7 @@ impl MemoryBuffer {
     /// Links multiple memory buffers.
     /// Used for the EVM target only.
     #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
-    pub fn link_memory_buffers(buffers: Vec<Self>, lld_args: &[&str]) -> Result<Self, ()> {
+    pub fn link_memory_buffers(buffers: &[&Self], lld_args: &[&str]) -> Result<Self, ()> {
         let buffer_ptrs: Vec<LLVMMemoryBufferRef> = buffers.iter().map(|buffer| buffer.memory_buffer).collect();
         let buffer_ptrs_ptr = buffer_ptrs.as_ptr();
         let buffer_ptrs_len = buffer_ptrs.len() as u32;
@@ -155,15 +155,13 @@ impl MemoryBuffer {
             })
             .collect();
 
-        let output_buffer_length = buffers.iter().map(|buffer| buffer.get_size()).sum();
-        let output_buffer_vec = vec![0u8; output_buffer_length];
-        let output_buffer = Self::create_from_memory_range(output_buffer_vec.as_slice(), "output_buffer");
+        let mut output_buffer = ptr::null_mut();
 
         let status = unsafe {
             LLVMLinkMemoryBuffers(
                 buffer_ptrs_ptr as *const LLVMMemoryBufferRef,
                 buffer_ptrs_len,
-                output_buffer.memory_buffer,
+                &mut output_buffer,
                 lld_args.as_ptr(),
                 lld_args_length,
             )
@@ -173,7 +171,7 @@ impl MemoryBuffer {
             return Err(());
         }
 
-        Ok(unsafe { Self::new(output_buffer.memory_buffer) })
+        Ok(unsafe { Self::new(output_buffer) })
     }
 }
 
