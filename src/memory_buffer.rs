@@ -3,12 +3,14 @@ use llvm_sys::core::{
     LLVMCreateMemoryBufferWithMemoryRangeCopy, LLVMCreateMemoryBufferWithSTDIN, LLVMDisposeMemoryBuffer,
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
-use llvm_sys::linker::LLVMLinkEraVM;
+use llvm_sys::linker::{LLVMAssembleEraVM, LLVMLinkEraVM};
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
 
 use crate::object_file::ObjectFile;
 use crate::support::{to_c_str, LLVMString};
+#[llvm_versions(13.0..=latest)]
+use crate::targets::TargetMachine;
 
 use std::mem::{forget, MaybeUninit};
 use std::path::Path;
@@ -133,6 +135,26 @@ impl MemoryBuffer {
         }
 
         unsafe { Ok(ObjectFile::new(object_file)) }
+    }
+
+    /// Translates textual assembly to the object code.
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, ()> {
+        let mut output_buffer = ptr::null_mut();
+
+        let status = unsafe {
+            LLVMAssembleEraVM(
+                machine.target_machine,
+                self.memory_buffer,
+                &mut output_buffer,
+            )
+        };
+
+        if status == 0 {
+            return Err(());
+        }
+
+        Ok(unsafe { Self::new(output_buffer) })
     }
 
     /// Links an EraVM module.
