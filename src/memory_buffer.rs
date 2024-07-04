@@ -139,10 +139,11 @@ impl MemoryBuffer {
 
     /// Translates textual assembly to the object code.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
-    pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, ()> {
+    pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
+        let mut err_string = MaybeUninit::uninit();
 
-        let status = unsafe {
+        let return_code = unsafe {
             LLVMAssembleEraVM(
                 machine.target_machine,
                 self.memory_buffer,
@@ -150,8 +151,10 @@ impl MemoryBuffer {
             )
         };
 
-        if status == 0 {
-            return Err(());
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
         }
 
         Ok(unsafe { Self::new(output_buffer) })
@@ -159,18 +162,21 @@ impl MemoryBuffer {
 
     /// Links an EraVM module.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
-    pub fn link_module_eravm(&self) -> Result<Self, ()> {
+    pub fn link_module_eravm(&self) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
+        let mut err_string = MaybeUninit::uninit();
 
-        let status = unsafe {
+        let return_code = unsafe {
             LLVMLinkEraVM(
                 self.memory_buffer,
                 &mut output_buffer,
             )
         };
 
-        if status == 0 {
-            return Err(());
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
         }
 
         Ok(unsafe { Self::new(output_buffer) })
