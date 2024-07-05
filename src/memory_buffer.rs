@@ -3,7 +3,7 @@ use llvm_sys::core::{
     LLVMCreateMemoryBufferWithMemoryRangeCopy, LLVMCreateMemoryBufferWithSTDIN, LLVMDisposeMemoryBuffer,
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
-use llvm_sys::linker::{LLVMAssembleEraVM, LLVMLinkEraVM};
+use llvm_sys::linker::{LLVMAssembleEraVM, LLVMExceedsSizeLimitEraVM, LLVMLinkEraVM};
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
 
@@ -158,6 +158,18 @@ impl MemoryBuffer {
         }
 
         Ok(unsafe { Self::new(output_buffer) })
+    }
+
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    /// Checks if the bytecode exceeds the EraVM size limit.
+    pub fn exceeds_size_limit_eravm(&self) -> bool {
+        let return_code = unsafe {
+            LLVMExceedsSizeLimitEraVM(
+                self.memory_buffer,
+            )
+        };
+
+        return_code != 0
     }
 
     /// Links an EraVM module.
