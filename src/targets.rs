@@ -797,9 +797,8 @@ impl Target {
     #[cfg(feature = "target-eravm")]
     pub fn initialize_eravm(config: &InitializationConfig) {
         use llvm_sys::target::{
-            LLVMInitializeEraVMAsmParser, LLVMInitializeEraVMAsmPrinter,
-            LLVMInitializeEraVMDisassembler, LLVMInitializeEraVMTarget,
-            LLVMInitializeEraVMTargetInfo, LLVMInitializeEraVMTargetMC,
+            LLVMInitializeEraVMAsmParser, LLVMInitializeEraVMAsmPrinter, LLVMInitializeEraVMDisassembler,
+            LLVMInitializeEraVMTarget, LLVMInitializeEraVMTargetInfo, LLVMInitializeEraVMTargetMC,
         };
 
         if config.base {
@@ -836,9 +835,8 @@ impl Target {
     #[cfg(feature = "target-evm")]
     pub fn initialize_evm(config: &InitializationConfig) {
         use llvm_sys::target::{
-            LLVMInitializeEVMAsmParser, LLVMInitializeEVMAsmPrinter,
-            LLVMInitializeEVMDisassembler, LLVMInitializeEVMTarget,
-            LLVMInitializeEVMTargetInfo, LLVMInitializeEVMTargetMC,
+            LLVMInitializeEVMAsmParser, LLVMInitializeEVMAsmPrinter, LLVMInitializeEVMDisassembler,
+            LLVMInitializeEVMTarget, LLVMInitializeEVMTargetInfo, LLVMInitializeEVMTargetMC,
         };
 
         if config.base {

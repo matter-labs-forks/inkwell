@@ -78,8 +78,8 @@ use llvm_sys::{
 #[llvm_versions(7.0..=latest)]
 use llvm_sys::LLVMInlineAsmDialect;
 
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
-use serde::{Serialize, Deserialize};
 
 // Thanks to kennytm for coming up with assert_unique_features!
 // which ensures that the LLVM feature flags are mutually exclusive

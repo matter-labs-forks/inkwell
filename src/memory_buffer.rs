@@ -141,19 +141,13 @@ impl MemoryBuffer {
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
-        let mut err_string = MaybeUninit::uninit();
+        // let mut err_string = MaybeUninit::uninit();
 
-        let return_code = unsafe {
-            LLVMAssembleEraVM(
-                machine.target_machine,
-                self.memory_buffer,
-                &mut output_buffer,
-            )
-        };
+        let return_code = unsafe { LLVMAssembleEraVM(machine.target_machine, self.memory_buffer, &mut output_buffer) };
 
         if return_code == 1 {
             unsafe {
-                return Err(LLVMString::new(err_string.assume_init()));
+                return Err(LLVMString::create_from_str("unknown assembling error\0"));
             }
         }
 
@@ -163,11 +157,7 @@ impl MemoryBuffer {
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     /// Checks if the bytecode exceeds the EraVM size limit.
     pub fn exceeds_size_limit_eravm(&self) -> bool {
-        let return_code = unsafe {
-            LLVMExceedsSizeLimitEraVM(
-                self.memory_buffer,
-            )
-        };
+        let return_code = unsafe { LLVMExceedsSizeLimitEraVM(self.memory_buffer) };
 
         return_code != 0
     }
@@ -176,18 +166,13 @@ impl MemoryBuffer {
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn link_module_eravm(&self) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
-        let mut err_string = MaybeUninit::uninit();
+        // let mut err_string = MaybeUninit::uninit();
 
-        let return_code = unsafe {
-            LLVMLinkEraVM(
-                self.memory_buffer,
-                &mut output_buffer,
-            )
-        };
+        let return_code = unsafe { LLVMLinkEraVM(self.memory_buffer, &mut output_buffer) };
 
         if return_code == 1 {
             unsafe {
-                return Err(LLVMString::new(err_string.assume_init()));
+                return Err(LLVMString::create_from_str("unknown linking error\0"));
             }
         }
 
