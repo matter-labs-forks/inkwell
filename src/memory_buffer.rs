@@ -141,13 +141,20 @@ impl MemoryBuffer {
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
-        // let mut err_string = MaybeUninit::uninit();
+        let mut err_string = MaybeUninit::uninit();
 
-        let return_code = unsafe { LLVMAssembleEraVM(machine.target_machine, self.memory_buffer, &mut output_buffer) };
+        let return_code = unsafe {
+            LLVMAssembleEraVM(
+                machine.target_machine,
+                self.memory_buffer,
+                &mut output_buffer,
+                err_string.as_mut_ptr(),
+            )
+        };
 
         if return_code == 1 {
             unsafe {
-                return Err(LLVMString::create_from_str("unknown assembling error\0"));
+                return Err(LLVMString::new(err_string.assume_init()));
             }
         }
 
@@ -156,23 +163,37 @@ impl MemoryBuffer {
 
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     /// Checks if the bytecode exceeds the EraVM size limit.
-    pub fn exceeds_size_limit_eravm(&self) -> bool {
-        let return_code = unsafe { LLVMExceedsSizeLimitEraVM(self.memory_buffer) };
+    pub fn exceeds_size_limit_eravm(&self, metadata_size: usize) -> bool {
+        let return_code = unsafe { LLVMExceedsSizeLimitEraVM(self.memory_buffer, metadata_size as libc::c_uint) };
 
         return_code != 0
     }
 
     /// Links an EraVM module.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
-    pub fn link_module_eravm(&self) -> Result<Self, LLVMString> {
+    pub fn link_module_eravm(&self, metadata: Option<&[u8]>) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
-        // let mut err_string = MaybeUninit::uninit();
+        let mut err_string = MaybeUninit::uninit();
 
-        let return_code = unsafe { LLVMLinkEraVM(self.memory_buffer, &mut output_buffer) };
+        let metadata_ptr = match metadata {
+            Some(metadata) => metadata.as_ptr(),
+            None => ptr::null(),
+        } as *const ::libc::c_char;
+        let metadata_size = metadata.map_or(0, |metadata| metadata.len() as libc::c_uint);
+
+        let return_code = unsafe {
+            LLVMLinkEraVM(
+                self.memory_buffer,
+                &mut output_buffer,
+                metadata_ptr,
+                metadata_size,
+                err_string.as_mut_ptr(),
+            )
+        };
 
         if return_code == 1 {
             unsafe {
-                return Err(LLVMString::create_from_str("unknown linking error\0"));
+                return Err(LLVMString::new(err_string.assume_init()));
             }
         }
 
