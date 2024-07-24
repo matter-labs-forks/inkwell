@@ -75,7 +75,7 @@ impl MemoryBuffer {
     /// This function is likely slightly cheaper than `create_from_memory_range_copy` since it intentionally
     /// leaks data to LLVM so that it doesn't have to reallocate. `create_from_memory_range_copy` may be removed
     /// in the future
-    pub fn create_from_memory_range(input: &[u8], name: &str) -> Self {
+    pub fn create_from_memory_range(input: &[u8], name: &str, requires_null_terminator: bool) -> Self {
         let name_c_string = to_c_str(name);
 
         let memory_buffer = unsafe {
@@ -83,7 +83,7 @@ impl MemoryBuffer {
                 input.as_ptr() as *const ::libc::c_char,
                 input.len(),
                 name_c_string.as_ptr(),
-                false as i32,
+                requires_null_terminator as i32,
             )
         };
 
