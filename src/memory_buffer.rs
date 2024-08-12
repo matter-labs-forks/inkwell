@@ -3,11 +3,14 @@ use llvm_sys::core::{
     LLVMCreateMemoryBufferWithMemoryRangeCopy, LLVMCreateMemoryBufferWithSTDIN, LLVMDisposeMemoryBuffer,
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
+use llvm_sys::linker::{LLVMAssembleEraVM, LLVMExceedsSizeLimitEraVM, LLVMLinkEraVM};
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
 
 use crate::object_file::ObjectFile;
 use crate::support::{to_c_str, LLVMString};
+#[llvm_versions(13.0..=latest)]
+use crate::targets::TargetMachine;
 
 use std::mem::{forget, MaybeUninit};
 use std::path::Path;
@@ -72,7 +75,7 @@ impl MemoryBuffer {
     /// This function is likely slightly cheaper than `create_from_memory_range_copy` since it intentionally
     /// leaks data to LLVM so that it doesn't have to reallocate. `create_from_memory_range_copy` may be removed
     /// in the future
-    pub fn create_from_memory_range(input: &[u8], name: &str) -> Self {
+    pub fn create_from_memory_range(input: &[u8], name: &str, requires_null_terminator: bool) -> Self {
         let name_c_string = to_c_str(name);
 
         let memory_buffer = unsafe {
@@ -80,7 +83,7 @@ impl MemoryBuffer {
                 input.as_ptr() as *const ::libc::c_char,
                 input.len(),
                 name_c_string.as_ptr(),
-                false as i32,
+                requires_null_terminator as i32,
             )
         };
 
@@ -132,6 +135,69 @@ impl MemoryBuffer {
         }
 
         unsafe { Ok(ObjectFile::new(object_file)) }
+    }
+
+    /// Translates textual assembly to the object code.
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, LLVMString> {
+        let mut output_buffer = ptr::null_mut();
+        let mut err_string = MaybeUninit::uninit();
+
+        let return_code = unsafe {
+            LLVMAssembleEraVM(
+                machine.target_machine,
+                self.memory_buffer,
+                &mut output_buffer,
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
+        }
+
+        Ok(unsafe { Self::new(output_buffer) })
+    }
+
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    /// Checks if the bytecode exceeds the EraVM size limit.
+    pub fn exceeds_size_limit_eravm(&self, metadata_size: usize) -> bool {
+        let return_code = unsafe { LLVMExceedsSizeLimitEraVM(self.memory_buffer, metadata_size as libc::c_uint) };
+
+        return_code != 0
+    }
+
+    /// Links an EraVM module.
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    pub fn link_module_eravm(&self, metadata: Option<&[u8]>) -> Result<Self, LLVMString> {
+        let mut output_buffer = ptr::null_mut();
+        let mut err_string = MaybeUninit::uninit();
+
+        let metadata_ptr = match metadata {
+            Some(metadata) => metadata.as_ptr(),
+            None => ptr::null(),
+        } as *const ::libc::c_char;
+        let metadata_size = metadata.map_or(0, |metadata| metadata.len() as libc::c_uint);
+
+        let return_code = unsafe {
+            LLVMLinkEraVM(
+                self.memory_buffer,
+                &mut output_buffer,
+                metadata_ptr,
+                metadata_size,
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
+        }
+
+        Ok(unsafe { Self::new(output_buffer) })
     }
 }
 
