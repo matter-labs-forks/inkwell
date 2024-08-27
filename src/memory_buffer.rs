@@ -3,7 +3,7 @@ use llvm_sys::core::{
     LLVMCreateMemoryBufferWithMemoryRangeCopy, LLVMCreateMemoryBufferWithSTDIN, LLVMDisposeMemoryBuffer,
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
-use llvm_sys::linker::{LLVMAssembleEraVM, LLVMExceedsSizeLimitEraVM, LLVMLinkEraVM};
+use llvm_sys::linker::{LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM, LLVMLinkEraVM};
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
 
@@ -147,6 +147,32 @@ impl MemoryBuffer {
             LLVMAssembleEraVM(
                 machine.target_machine,
                 self.memory_buffer,
+                &mut output_buffer,
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
+        }
+
+        Ok(unsafe { Self::new(output_buffer) })
+    }
+
+    /// Disassembles the bytecode in the buffer.
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    pub fn disassemble_eravm(&self, machine: &TargetMachine, pc: u32, options: u32) -> Result<Self, LLVMString> {
+        let mut output_buffer = ptr::null_mut();
+        let mut err_string = MaybeUninit::uninit();
+
+        let return_code = unsafe {
+            LLVMDisassembleEraVM(
+                machine.target_machine,
+                self.memory_buffer,
+                pc,
+                options,
                 &mut output_buffer,
                 err_string.as_mut_ptr(),
             )
