@@ -23,6 +23,10 @@ pub struct MemoryBuffer {
 }
 
 impl MemoryBuffer {
+    pub const ETHEREUM_ADDRESS_SIZE: usize = 20;
+
+    pub const ERAVM_WORD_SIZE: usize = 32;
+
     pub unsafe fn new(memory_buffer: LLVMMemoryBufferRef) -> Self {
         assert!(!memory_buffer.is_null());
 
@@ -197,7 +201,11 @@ impl MemoryBuffer {
 
     /// Links an EraVM module.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
-    pub fn link_module_eravm(&self, metadata: Option<&[u8]>) -> Result<Self, LLVMString> {
+    pub fn link_module_eravm(
+        &self,
+        linker_symbols: &[([u8; Self::ERAVM_WORD_SIZE], [u8; Self::ETHEREUM_ADDRESS_SIZE])],
+        metadata: Option<&[u8]>,
+    ) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
 
@@ -207,12 +215,25 @@ impl MemoryBuffer {
         } as *const ::libc::c_char;
         let metadata_size = metadata.map_or(0, |metadata| metadata.len() as libc::c_uint);
 
+        let linker_symbol_keys = linker_symbols
+            .iter()
+            .map(|(key, _)| key.as_ptr() as *const ::libc::c_char)
+            .collect::<Vec<_>>();
+        let linker_symbol_values = linker_symbols
+            .iter()
+            .map(|(_, value)| value.as_ptr() as *const ::libc::c_char)
+            .collect::<Vec<_>>();
+        let linker_symbols_size = linker_symbols.len() as libc::c_uint;
+
         let return_code = unsafe {
             LLVMLinkEraVM(
                 self.memory_buffer,
                 &mut output_buffer,
                 metadata_ptr,
                 metadata_size,
+                linker_symbol_keys.as_ptr(),
+                linker_symbol_values.as_ptr(),
+                linker_symbols_size,
                 err_string.as_mut_ptr(),
             )
         };
