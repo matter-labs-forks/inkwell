@@ -3,7 +3,9 @@ use llvm_sys::core::{
     LLVMCreateMemoryBufferWithMemoryRangeCopy, LLVMCreateMemoryBufferWithSTDIN, LLVMDisposeMemoryBuffer,
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
-use llvm_sys::linker::{LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM, LLVMLinkEraVM};
+use llvm_sys::linker::{
+    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM, LLVMLinkEraVM,
+};
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
 
@@ -191,6 +193,34 @@ impl MemoryBuffer {
         Ok(unsafe { Self::new(output_buffer) })
     }
 
+    /// Appends metadata to the EraVM module.
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    pub fn append_metadata_eravm(&self, metadata: &[u8]) -> Result<Self, LLVMString> {
+        let mut output_buffer = ptr::null_mut();
+        let mut err_string = MaybeUninit::uninit();
+
+        let metadata_ptr = metadata.as_ptr() as *const ::libc::c_char;
+        let metadata_size = metadata.len() as libc::c_uint;
+
+        let return_code = unsafe {
+            LLVMAddMetadataEraVM(
+                self.memory_buffer,
+                metadata_ptr,
+                metadata_size,
+                &mut output_buffer,
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
+        }
+
+        Ok(unsafe { Self::new(output_buffer) })
+    }
+
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     /// Checks if the bytecode exceeds the EraVM size limit.
     pub fn exceeds_size_limit_eravm(&self, metadata_size: usize) -> bool {
@@ -199,21 +229,14 @@ impl MemoryBuffer {
         return_code != 0
     }
 
-    /// Links an EraVM module.
+    /// Links the EraVM module.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn link_module_eravm(
         &self,
         linker_symbols: &[([u8; Self::ERAVM_WORD_SIZE], [u8; Self::ETHEREUM_ADDRESS_SIZE])],
-        metadata: Option<&[u8]>,
     ) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
-
-        let metadata_ptr = match metadata {
-            Some(metadata) => metadata.as_ptr(),
-            None => ptr::null(),
-        } as *const ::libc::c_char;
-        let metadata_size = metadata.map_or(0, |metadata| metadata.len() as libc::c_uint);
 
         let linker_symbol_keys = linker_symbols
             .iter()
@@ -229,8 +252,6 @@ impl MemoryBuffer {
             LLVMLinkEraVM(
                 self.memory_buffer,
                 &mut output_buffer,
-                metadata_ptr,
-                metadata_size,
                 linker_symbol_keys.as_ptr(),
                 linker_symbol_values.as_ptr(),
                 linker_symbols_size,
