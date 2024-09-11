@@ -4,7 +4,8 @@ use llvm_sys::core::{
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
 use llvm_sys::linker::{
-    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM, LLVMLinkEraVM,
+    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM,
+    LLVMGetUndefinedSymbolsEraVM, LLVMIsELF, LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -14,6 +15,7 @@ use crate::support::{to_c_str, LLVMString};
 #[llvm_versions(13.0..=latest)]
 use crate::targets::TargetMachine;
 
+use std::collections::BTreeMap;
 use std::mem::{forget, MaybeUninit};
 use std::path::Path;
 use std::ptr;
@@ -143,6 +145,14 @@ impl MemoryBuffer {
         unsafe { Ok(ObjectFile::new(object_file)) }
     }
 
+    /// Checks if the memory buffer is a valid ELF object.
+    #[cfg(all(feature = "llvm17-0"))]
+    pub fn is_elf(&self) -> bool {
+        let return_code = unsafe { LLVMIsELF(self.memory_buffer) };
+
+        return_code != 0
+    }
+
     /// Translates textual assembly to the object code.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, LLVMString> {
@@ -221,31 +231,56 @@ impl MemoryBuffer {
         Ok(unsafe { Self::new(output_buffer) })
     }
 
-    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     /// Checks if the bytecode exceeds the EraVM size limit.
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn exceeds_size_limit_eravm(&self, metadata_size: usize) -> bool {
         let return_code = unsafe { LLVMExceedsSizeLimitEraVM(self.memory_buffer, metadata_size as libc::c_uint) };
 
         return_code != 0
     }
 
+    /// Returns unresolved symbols in the ELF wrapper.
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    pub fn get_undefined_symbols_eravm(&self) -> Vec<String> {
+        let mut output_buffer = ptr::null_mut();
+        let mut output_size = 0;
+
+        unsafe {
+            LLVMGetUndefinedSymbolsEraVM(self.memory_buffer, &mut output_buffer, &mut output_size);
+        }
+
+        let output_buffer =
+            unsafe { slice::from_raw_parts(output_buffer as *const *const ::libc::c_char, output_size as usize) };
+
+        output_buffer
+            .iter()
+            .map(|&symbol| unsafe { String::from(::std::ffi::CStr::from_ptr(symbol).to_str().expect("Always valid")) })
+            .collect()
+    }
+
     /// Links the EraVM module.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn link_module_eravm(
         &self,
-        linker_symbols: &[([u8; Self::ERAVM_WORD_SIZE], [u8; Self::ETHEREUM_ADDRESS_SIZE])],
+        linker_symbols: &BTreeMap<String, [u8; Self::ETHEREUM_ADDRESS_SIZE]>,
     ) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
 
-        let linker_symbol_keys = linker_symbols
+        let linker_symbol_keys: Vec<String> = linker_symbols
+            .keys()
+            .map(|key| crate::support::to_null_terminated_owned(key.as_str()))
+            .collect();
+        let linker_symbol_keys: Vec<*const ::libc::c_char> = linker_symbol_keys
             .iter()
-            .map(|(key, _)| key.as_ptr() as *const ::libc::c_char)
-            .collect::<Vec<_>>();
+            .map(|key| to_c_str(key.as_str()).as_ptr())
+            .collect();
+
         let linker_symbol_values = linker_symbols
-            .iter()
-            .map(|(_, value)| value.as_ptr() as *const ::libc::c_char)
-            .collect::<Vec<_>>();
+            .values()
+            .cloned()
+            .collect::<Vec<[u8; Self::ETHEREUM_ADDRESS_SIZE]>>();
+
         let linker_symbols_size = linker_symbols.len() as libc::c_uint;
 
         let return_code = unsafe {
@@ -253,7 +288,7 @@ impl MemoryBuffer {
                 self.memory_buffer,
                 &mut output_buffer,
                 linker_symbol_keys.as_ptr(),
-                linker_symbol_values.as_ptr(),
+                linker_symbol_values.as_ptr() as *const ::libc::c_char,
                 linker_symbols_size,
                 err_string.as_mut_ptr(),
             )
