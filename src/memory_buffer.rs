@@ -5,7 +5,7 @@ use llvm_sys::core::{
 };
 use llvm_sys::linker::{
     LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM,
-    LLVMGetUndefinedSymbolsEraVM, LLVMIsELF, LLVMLinkEraVM,
+    LLVMGetUndefinedLinkerSymbolsEraVM, LLVMIsELFEraVM, LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -145,14 +145,6 @@ impl MemoryBuffer {
         unsafe { Ok(ObjectFile::new(object_file)) }
     }
 
-    /// Checks if the memory buffer is a valid ELF object.
-    #[cfg(all(feature = "llvm17-0"))]
-    pub fn is_elf(&self) -> bool {
-        let return_code = unsafe { LLVMIsELF(self.memory_buffer) };
-
-        return_code != 0
-    }
-
     /// Translates textual assembly to the object code.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, LLVMString> {
@@ -203,6 +195,14 @@ impl MemoryBuffer {
         Ok(unsafe { Self::new(output_buffer) })
     }
 
+    /// Checks if the memory buffer is a valid ELF object.
+    #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
+    pub fn is_elf_eravm(&self) -> bool {
+        let return_code = unsafe { LLVMIsELFEraVM(self.memory_buffer) };
+
+        return_code != 0
+    }
+
     /// Appends metadata to the EraVM module.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn append_metadata_eravm(&self, metadata: &[u8]) -> Result<Self, LLVMString> {
@@ -242,15 +242,11 @@ impl MemoryBuffer {
     /// Returns unresolved symbols in the ELF wrapper.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn get_undefined_symbols_eravm(&self) -> Vec<String> {
-        let mut output_buffer = ptr::null_mut();
         let mut output_size = 0;
 
-        unsafe {
-            LLVMGetUndefinedSymbolsEraVM(self.memory_buffer, &mut output_buffer, &mut output_size);
-        }
+        let output_buffer = unsafe { LLVMGetUndefinedLinkerSymbolsEraVM(self.memory_buffer, &mut output_size) };
 
-        let output_buffer =
-            unsafe { slice::from_raw_parts(output_buffer as *const *const ::libc::c_char, output_size as usize) };
+        let output_buffer = unsafe { slice::from_raw_parts(output_buffer, output_size as usize) };
 
         output_buffer
             .iter()
