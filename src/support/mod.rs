@@ -6,7 +6,9 @@ use libc::c_char;
 use llvm_sys::core::LLVMGetVersion;
 use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
 use llvm_sys::error_handling::LLVMEnablePrettyStackTrace;
-use llvm_sys::support::{LLVMLoadLibraryPermanently, LLVMParseCommandLineOptions, LLVMPrintCommitIDTo, LLVMSearchForAddressOfSymbol};
+use llvm_sys::support::{
+    LLVMLoadLibraryPermanently, LLVMParseCommandLineOptions, LLVMPrintCommitIDTo, LLVMSearchForAddressOfSymbol,
+};
 
 use std::borrow::Cow;
 use std::error::Error;
@@ -141,16 +143,8 @@ pub fn get_llvm_version() -> (u32, u32, u32) {
 pub fn parse_command_line_options(args: &[&str], overview: &str) {
     let argc = args.len() as i32;
 
-    let args: Vec<String> = args
-        .into_iter()
-        .map(|arg| to_null_terminated_owned(*arg))
-        .collect();
-    let args: Vec<*const ::libc::c_char> = args
-        .iter()
-        .map(|arg| {
-            to_c_str(arg.as_str()).as_ptr()
-        })
-        .collect();
+    let args: Vec<String> = args.into_iter().map(|arg| to_null_terminated_owned(*arg)).collect();
+    let args: Vec<*const ::libc::c_char> = args.iter().map(|arg| to_c_str(arg.as_str()).as_ptr()).collect();
 
     let overview = to_null_terminated_owned(overview);
     let overview = to_c_str(overview.as_str());
