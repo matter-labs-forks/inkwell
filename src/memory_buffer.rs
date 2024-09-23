@@ -242,8 +242,10 @@ impl MemoryBuffer {
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn get_undefined_symbols_eravm(&self) -> Vec<String> {
         let mut output_size: u64 = 0;
-
         let output_buffer = unsafe { LLVMGetUndefinedLinkerSymbolsEraVM(self.memory_buffer, &mut output_size) };
+        if output_size == 0 {
+            return vec![];
+        }
 
         let output_buffer = unsafe { slice::from_raw_parts(output_buffer, output_size as usize) };
 
