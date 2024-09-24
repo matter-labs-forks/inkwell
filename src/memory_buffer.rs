@@ -205,7 +205,7 @@ impl MemoryBuffer {
 
     /// Disassembles the bytecode in the buffer.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
-    pub fn disassemble_eravm(&self, machine: &TargetMachine, pc: u32, options: u32) -> Result<Self, LLVMString> {
+    pub fn disassemble_eravm(&self, machine: &TargetMachine, pc: u64, options: u64) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
 
@@ -244,13 +244,12 @@ impl MemoryBuffer {
         let mut err_string = MaybeUninit::uninit();
 
         let metadata_ptr = metadata.as_ptr() as *const ::libc::c_char;
-        let metadata_size = metadata.len() as libc::c_uint;
 
         let return_code = unsafe {
             LLVMAddMetadataEraVM(
                 self.memory_buffer,
                 metadata_ptr,
-                metadata_size,
+                metadata.len() as u64,
                 &mut output_buffer,
                 err_string.as_mut_ptr(),
             )
@@ -268,7 +267,7 @@ impl MemoryBuffer {
     /// Checks if the bytecode exceeds the EraVM size limit.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn exceeds_size_limit_eravm(&self, metadata_size: usize) -> bool {
-        let return_code = unsafe { LLVMExceedsSizeLimitEraVM(self.memory_buffer, metadata_size as libc::c_uint) };
+        let return_code = unsafe { LLVMExceedsSizeLimitEraVM(self.memory_buffer, metadata_size as u64) };
 
         return_code != 0
     }
@@ -276,9 +275,11 @@ impl MemoryBuffer {
     /// Returns unresolved symbols in the ELF wrapper.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn get_undefined_symbols_eravm(&self) -> Vec<String> {
-        let mut output_size = 0;
-
+        let mut output_size: u64 = 0;
         let output_buffer = unsafe { LLVMGetUndefinedLinkerSymbolsEraVM(self.memory_buffer, &mut output_size) };
+        if output_size == 0 {
+            return vec![];
+        }
 
         let output_buffer = unsafe { slice::from_raw_parts(output_buffer, output_size as usize) };
 
@@ -311,15 +312,13 @@ impl MemoryBuffer {
             .cloned()
             .collect::<Vec<[u8; Self::ETHEREUM_ADDRESS_SIZE]>>();
 
-        let linker_symbols_size = linker_symbols.len() as libc::c_uint;
-
         let return_code = unsafe {
             LLVMLinkEraVM(
                 self.memory_buffer,
                 &mut output_buffer,
                 linker_symbol_keys.as_ptr(),
                 linker_symbol_values.as_ptr() as *const ::libc::c_char,
-                linker_symbols_size,
+                linker_symbols.len() as u64,
                 err_string.as_mut_ptr(),
             )
         };
