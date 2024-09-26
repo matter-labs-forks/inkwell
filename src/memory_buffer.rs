@@ -5,7 +5,7 @@ use llvm_sys::core::{
 };
 use llvm_sys::linker::{
     LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM,
-    LLVMGetUndefinedLinkerSymbolsEraVM, LLVMIsELFEraVM, LLVMLinkEraVM, LLVMLinkMemoryBuffers,
+    LLVMGetUndefinedLinkerSymbolsEraVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -145,30 +145,33 @@ impl MemoryBuffer {
         unsafe { Ok(ObjectFile::new(object_file)) }
     }
 
-    /// Links multiple memory buffers.
-    /// Used for the EVM target only.
+    /// Links EVM modules.
     #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
-    pub fn link_memory_buffers(buffers: &[&Self], lld_args: &[&str]) -> Result<Self, ()> {
+    pub fn link_module_evm(buffers: &[&Self], buffer_ids: &[&str], _lld_args: &[&str]) -> Result<(Self, Self), ()> {
         let buffer_ptrs: Vec<LLVMMemoryBufferRef> = buffers.iter().map(|buffer| buffer.memory_buffer).collect();
-        let buffer_ptrs_ptr = buffer_ptrs.as_ptr();
-        let buffer_ptrs_len = buffer_ptrs.len() as u32;
 
-        let lld_args_length = lld_args.len() as u32;
-        let lld_args: Vec<String> = lld_args
-            .into_iter()
-            .map(|arg| crate::support::to_null_terminated_owned(*arg))
+        let buffer_ids: Vec<String> = buffer_ids
+            .iter()
+            .map(|id| crate::support::to_null_terminated_owned(id))
             .collect();
-        let lld_args: Vec<*const ::libc::c_char> = lld_args.iter().map(|arg| to_c_str(arg.as_str()).as_ptr()).collect();
+        let buffer_ids: Vec<*const ::libc::c_char> =
+            buffer_ids.iter().map(|id| to_c_str(id.as_str()).as_ptr()).collect();
 
-        let mut output_buffer = ptr::null_mut();
+        // let lld_args_length = lld_args.len() as u32;
+        // let lld_args: Vec<String> = lld_args
+        //     .into_iter()
+        //     .map(|arg| crate::support::to_null_terminated_owned(*arg))
+        //     .collect();
+        // let lld_args: Vec<*const ::libc::c_char> = lld_args.iter().map(|arg| to_c_str(arg.as_str()).as_ptr()).collect();
+
+        let output_buffer = ptr::null_mut() as *mut [LLVMMemoryBufferRef; 2];
 
         let status = unsafe {
-            LLVMLinkMemoryBuffers(
-                buffer_ptrs_ptr as *const LLVMMemoryBufferRef,
-                buffer_ptrs_len,
-                &mut output_buffer,
-                lld_args.as_ptr(),
-                lld_args_length,
+            LLVMLinkEVM(
+                buffer_ptrs.as_ptr() as *const LLVMMemoryBufferRef,
+                buffer_ids.as_ptr(),
+                buffer_ptrs.len() as u64,
+                output_buffer,
             )
         };
 
@@ -176,7 +179,10 @@ impl MemoryBuffer {
             return Err(());
         }
 
-        Ok(unsafe { Self::new(output_buffer) })
+        unsafe {
+            let [deploy_buffer, runtime_buffer] = *output_buffer;
+            Ok((MemoryBuffer::new(deploy_buffer), MemoryBuffer::new(runtime_buffer)))
+        }
     }
 
     /// Translates textual assembly to the object code.
