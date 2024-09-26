@@ -147,7 +147,10 @@ impl MemoryBuffer {
 
     /// Links EVM modules.
     #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
-    pub fn link_module_evm(buffers: &[&Self], buffer_ids: &[&str], _lld_args: &[&str]) -> Result<(Self, Self), ()> {
+    pub fn link_module_evm(buffers: &[&Self], buffer_ids: &[&str]) -> Result<(Self, Self), LLVMString> {
+        let mut output_buffers = [ptr::null_mut() as LLVMMemoryBufferRef; 2];
+        let mut err_string = MaybeUninit::uninit();
+
         let buffer_ptrs: Vec<LLVMMemoryBufferRef> = buffers.iter().map(|buffer| buffer.memory_buffer).collect();
 
         let buffer_ids: Vec<String> = buffer_ids
@@ -157,30 +160,24 @@ impl MemoryBuffer {
         let buffer_ids: Vec<*const ::libc::c_char> =
             buffer_ids.iter().map(|id| to_c_str(id.as_str()).as_ptr()).collect();
 
-        // let lld_args_length = lld_args.len() as u32;
-        // let lld_args: Vec<String> = lld_args
-        //     .into_iter()
-        //     .map(|arg| crate::support::to_null_terminated_owned(*arg))
-        //     .collect();
-        // let lld_args: Vec<*const ::libc::c_char> = lld_args.iter().map(|arg| to_c_str(arg.as_str()).as_ptr()).collect();
-
-        let output_buffer = ptr::null_mut() as *mut [LLVMMemoryBufferRef; 2];
-
-        let status = unsafe {
+        let return_code = unsafe {
             LLVMLinkEVM(
                 buffer_ptrs.as_ptr() as *const LLVMMemoryBufferRef,
                 buffer_ids.as_ptr(),
                 buffer_ptrs.len() as u64,
-                output_buffer,
+                output_buffers.as_mut_ptr() as *mut [LLVMMemoryBufferRef; 2],
+                err_string.as_mut_ptr(),
             )
         };
 
-        if status == 0 {
-            return Err(());
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
         }
 
         unsafe {
-            let [deploy_buffer, runtime_buffer] = *output_buffer;
+            let [deploy_buffer, runtime_buffer] = output_buffers;
             Ok((MemoryBuffer::new(deploy_buffer), MemoryBuffer::new(runtime_buffer)))
         }
     }
