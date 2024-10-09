@@ -5,7 +5,7 @@ use llvm_sys::core::{
 };
 use llvm_sys::linker::{
     LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM,
-    LLVMGetUndefinedLinkerSymbolsEraVM, LLVMIsELFEraVM, LLVMLinkEraVM,
+    LLVMGetUndefinedLinkerSymbolsEraVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -143,6 +143,43 @@ impl MemoryBuffer {
         }
 
         unsafe { Ok(ObjectFile::new(object_file)) }
+    }
+
+    /// Links EVM modules.
+    #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
+    pub fn link_module_evm(buffers: &[&Self], buffer_ids: &[&str]) -> Result<(Self, Self), LLVMString> {
+        let mut output_buffers = [ptr::null_mut() as LLVMMemoryBufferRef; 2];
+        let mut err_string = MaybeUninit::uninit();
+
+        let buffer_ptrs: Vec<LLVMMemoryBufferRef> = buffers.iter().map(|buffer| buffer.memory_buffer).collect();
+
+        let buffer_ids: Vec<String> = buffer_ids
+            .iter()
+            .map(|id| crate::support::to_null_terminated_owned(id))
+            .collect();
+        let buffer_ids: Vec<*const ::libc::c_char> =
+            buffer_ids.iter().map(|id| to_c_str(id.as_str()).as_ptr()).collect();
+
+        let return_code = unsafe {
+            LLVMLinkEVM(
+                buffer_ptrs.as_ptr() as *const LLVMMemoryBufferRef,
+                buffer_ids.as_ptr(),
+                buffer_ptrs.len() as u64,
+                output_buffers.as_mut_ptr() as *mut [LLVMMemoryBufferRef; 2],
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
+        }
+
+        unsafe {
+            let [deploy_buffer, runtime_buffer] = output_buffers;
+            Ok((MemoryBuffer::new(deploy_buffer), MemoryBuffer::new(runtime_buffer)))
+        }
     }
 
     /// Translates textual assembly to the object code.
