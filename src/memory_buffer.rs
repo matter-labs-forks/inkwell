@@ -4,8 +4,8 @@ use llvm_sys::core::{
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
 use llvm_sys::linker::{
-    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMExceedsSizeLimitEraVM,
-    LLVMGetUndefinedLinkerSymbolsEraVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
+    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedLinkerSymbolsEraVM,
+    LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedLinkerSymbolsEraVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -281,15 +281,23 @@ impl MemoryBuffer {
         let mut output_size: u64 = 0;
         let output_buffer = unsafe { LLVMGetUndefinedLinkerSymbolsEraVM(self.memory_buffer, &mut output_size) };
         if output_size == 0 {
+            unsafe {
+                LLVMDisposeUndefinedLinkerSymbolsEraVM(output_buffer, output_size);
+            }
             return vec![];
         }
 
-        let output_buffer = unsafe { slice::from_raw_parts(output_buffer, output_size as usize) };
+        let output_buffer_slice = unsafe { slice::from_raw_parts(output_buffer, output_size as usize) };
 
-        output_buffer
+        let symbols = output_buffer_slice
             .iter()
             .map(|&symbol| unsafe { String::from(::std::ffi::CStr::from_ptr(symbol).to_str().expect("Always valid")) })
-            .collect()
+            .collect();
+        unsafe {
+            LLVMDisposeUndefinedLinkerSymbolsEraVM(output_buffer, output_size);
+        }
+
+        symbols
     }
 
     /// Links the EraVM module.
