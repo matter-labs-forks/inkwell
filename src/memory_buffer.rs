@@ -292,44 +292,46 @@ impl MemoryBuffer {
             )
         };
 
-        if linker_symbols_size == 0 && factory_dependencies_size == 0 {
-            unsafe {
-                LLVMDisposeUndefinedReferencesEraVM(
-                    linker_symbols_buffer as *const *const ::libc::c_char,
-                    linker_symbols_size,
-                );
-                LLVMDisposeUndefinedReferencesEraVM(
-                    factory_dependencies_buffer as *const *const ::libc::c_char,
-                    factory_dependencies_size,
-                );
-            }
-            return (vec![], vec![]);
-        }
-
-        let linker_symbols_buffer_slice =
-            unsafe { slice::from_raw_parts(linker_symbols_buffer, linker_symbols_size as usize) };
-        let linker_symbols = linker_symbols_buffer_slice
-            .iter()
-            .map(|&value| unsafe { String::from(::std::ffi::CStr::from_ptr(value).to_str().expect("Always valid")) })
-            .collect();
-
-        let factory_dependencies_buffer_slice =
-            unsafe { slice::from_raw_parts(factory_dependencies_buffer, factory_dependencies_size as usize) };
-        let factory_dependencies = factory_dependencies_buffer_slice
-            .iter()
-            .map(|&value| unsafe { String::from(::std::ffi::CStr::from_ptr(value).to_str().expect("Always valid")) })
-            .collect();
-
+        let linker_symbols = if linker_symbols_size != 0 {
+            let linker_symbols_buffer_slice =
+                unsafe { slice::from_raw_parts(linker_symbols_buffer, linker_symbols_size as usize) };
+            let linker_symbols = linker_symbols_buffer_slice
+                .iter()
+                .map(|&value| unsafe {
+                    String::from(::std::ffi::CStr::from_ptr(value).to_str().expect("Always valid"))
+                })
+                .collect();
+            linker_symbols
+        } else {
+            vec![]
+        };
         unsafe {
             LLVMDisposeUndefinedReferencesEraVM(
                 linker_symbols_buffer as *const *const ::libc::c_char,
                 linker_symbols_size,
             );
+        }
+
+        let factory_dependencies = if factory_dependencies_size != 0 {
+            let factory_dependencies_buffer_slice =
+                unsafe { slice::from_raw_parts(factory_dependencies_buffer, factory_dependencies_size as usize) };
+            let factory_dependencies = factory_dependencies_buffer_slice
+                .iter()
+                .map(|&value| unsafe {
+                    String::from(::std::ffi::CStr::from_ptr(value).to_str().expect("Always valid"))
+                })
+                .collect();
+            factory_dependencies
+        } else {
+            vec![]
+        };
+        unsafe {
             LLVMDisposeUndefinedReferencesEraVM(
                 factory_dependencies_buffer as *const *const ::libc::c_char,
                 factory_dependencies_size,
             );
         }
+
         (linker_symbols, factory_dependencies)
     }
 
