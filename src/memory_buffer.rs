@@ -4,8 +4,8 @@ use llvm_sys::core::{
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
 use llvm_sys::linker::{
-    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedLinkerSymbolsEraVM,
-    LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedLinkerSymbolsEraVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
+    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedReferencesEraVM,
+    LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -275,29 +275,64 @@ impl MemoryBuffer {
         return_code != 0
     }
 
-    /// Returns unresolved symbols in the ELF wrapper.
+    /// Returns undefined references of the ELF wrapper.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
-    pub fn get_undefined_symbols_eravm(&self) -> Vec<String> {
-        let mut output_size: u64 = 0;
-        let output_buffer = unsafe { LLVMGetUndefinedLinkerSymbolsEraVM(self.memory_buffer, &mut output_size) };
-        if output_size == 0 {
-            unsafe {
-                LLVMDisposeUndefinedLinkerSymbolsEraVM(output_buffer, output_size);
-            }
-            return vec![];
-        }
-
-        let output_buffer_slice = unsafe { slice::from_raw_parts(output_buffer, output_size as usize) };
-
-        let symbols = output_buffer_slice
-            .iter()
-            .map(|&symbol| unsafe { String::from(::std::ffi::CStr::from_ptr(symbol).to_str().expect("Always valid")) })
-            .collect();
+    pub fn get_undefined_references_eravm(&self) -> (Vec<String>, Vec<String>) {
+        let mut linker_symbols_buffer = ptr::null_mut();
+        let mut linker_symbols_size: u64 = 0;
+        let mut factory_dependencies_buffer = ptr::null_mut();
+        let mut factory_dependencies_size: u64 = 0;
         unsafe {
-            LLVMDisposeUndefinedLinkerSymbolsEraVM(output_buffer, output_size);
+            LLVMGetUndefinedReferencesEraVM(
+                self.memory_buffer,
+                &mut linker_symbols_buffer,
+                &mut linker_symbols_size,
+                &mut factory_dependencies_buffer,
+                &mut factory_dependencies_size,
+            )
+        };
+
+        let linker_symbols = if linker_symbols_size != 0 {
+            let linker_symbols_buffer_slice =
+                unsafe { slice::from_raw_parts(linker_symbols_buffer, linker_symbols_size as usize) };
+            let linker_symbols = linker_symbols_buffer_slice
+                .iter()
+                .map(|&value| unsafe {
+                    String::from(::std::ffi::CStr::from_ptr(value).to_str().expect("Always valid"))
+                })
+                .collect();
+            linker_symbols
+        } else {
+            vec![]
+        };
+        unsafe {
+            LLVMDisposeUndefinedReferencesEraVM(
+                linker_symbols_buffer as *const *const ::libc::c_char,
+                linker_symbols_size,
+            );
         }
 
-        symbols
+        let factory_dependencies = if factory_dependencies_size != 0 {
+            let factory_dependencies_buffer_slice =
+                unsafe { slice::from_raw_parts(factory_dependencies_buffer, factory_dependencies_size as usize) };
+            let factory_dependencies = factory_dependencies_buffer_slice
+                .iter()
+                .map(|&value| unsafe {
+                    String::from(::std::ffi::CStr::from_ptr(value).to_str().expect("Always valid"))
+                })
+                .collect();
+            factory_dependencies
+        } else {
+            vec![]
+        };
+        unsafe {
+            LLVMDisposeUndefinedReferencesEraVM(
+                factory_dependencies_buffer as *const *const ::libc::c_char,
+                factory_dependencies_size,
+            );
+        }
+
+        (linker_symbols, factory_dependencies)
     }
 
     /// Links the EraVM module.
@@ -305,6 +340,7 @@ impl MemoryBuffer {
     pub fn link_module_eravm(
         &self,
         linker_symbols: &BTreeMap<String, [u8; Self::ETHEREUM_ADDRESS_SIZE]>,
+        factory_dependencies: &BTreeMap<String, [u8; Self::ERAVM_WORD_SIZE]>,
     ) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
@@ -317,11 +353,23 @@ impl MemoryBuffer {
             .iter()
             .map(|key| to_c_str(key.as_str()).as_ptr())
             .collect();
-
         let linker_symbol_values = linker_symbols
             .values()
             .cloned()
             .collect::<Vec<[u8; Self::ETHEREUM_ADDRESS_SIZE]>>();
+
+        let factory_dependency_keys: Vec<String> = factory_dependencies
+            .keys()
+            .map(|key| crate::support::to_null_terminated_owned(key.as_str()))
+            .collect();
+        let factory_dependency_keys: Vec<*const ::libc::c_char> = factory_dependency_keys
+            .iter()
+            .map(|key| to_c_str(key.as_str()).as_ptr())
+            .collect();
+        let factory_dependency_values = factory_dependencies
+            .values()
+            .cloned()
+            .collect::<Vec<[u8; Self::ERAVM_WORD_SIZE]>>();
 
         let return_code = unsafe {
             LLVMLinkEraVM(
@@ -330,6 +378,9 @@ impl MemoryBuffer {
                 linker_symbol_keys.as_ptr(),
                 linker_symbol_values.as_ptr() as *const ::libc::c_char,
                 linker_symbols.len() as u64,
+                factory_dependency_keys.as_ptr(),
+                factory_dependency_values.as_ptr() as *const ::libc::c_char,
+                factory_dependencies.len() as u64,
                 err_string.as_mut_ptr(),
             )
         };
