@@ -4,7 +4,7 @@ use llvm_sys::core::{
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
 use llvm_sys::linker::{
-    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedReferencesEraVM,
+    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedReferences,
     LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM,
     LLVMLinkEraVM,
 };
@@ -335,7 +335,7 @@ impl MemoryBuffer {
             vec![]
         };
         unsafe {
-            LLVMDisposeUndefinedReferencesEraVM(
+            LLVMDisposeUndefinedReferences(
                 linker_symbols_buffer as *const *const ::libc::c_char,
                 linker_symbols_size,
             );
@@ -355,7 +355,7 @@ impl MemoryBuffer {
             vec![]
         };
         unsafe {
-            LLVMDisposeUndefinedReferencesEraVM(
+            LLVMDisposeUndefinedReferences(
                 factory_dependencies_buffer as *const *const ::libc::c_char,
                 factory_dependencies_size,
             );
