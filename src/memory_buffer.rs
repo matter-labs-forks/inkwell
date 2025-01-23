@@ -5,7 +5,8 @@ use llvm_sys::core::{
 };
 use llvm_sys::linker::{
     LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedReferencesEraVM,
-    LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
+    LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM,
+    LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -202,6 +203,14 @@ impl MemoryBuffer {
         }
     }
 
+    /// Checks if the EraVM memory buffer is a valid ELF object.
+    #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
+    pub fn is_elf_evm(&self) -> bool {
+        let return_code = unsafe { LLVMIsELFEVM(self.memory_buffer) };
+
+        return_code != 0
+    }
+
     /// Translates textual assembly to the object code.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn assemble_eravm(&self, machine: &TargetMachine) -> Result<Self, LLVMString> {
@@ -252,7 +261,7 @@ impl MemoryBuffer {
         Ok(unsafe { Self::new(output_buffer) })
     }
 
-    /// Checks if the memory buffer is a valid ELF object.
+    /// Checks if the EraVM memory buffer is a valid ELF object.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn is_elf_eravm(&self) -> bool {
         let return_code = unsafe { LLVMIsELFEraVM(self.memory_buffer) };
