@@ -4,8 +4,9 @@ use llvm_sys::core::{
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
 use llvm_sys::linker::{
-    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedReferencesEraVM,
-    LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
+    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedReferences,
+    LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM,
+    LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -147,7 +148,11 @@ impl MemoryBuffer {
 
     /// Links EVM modules.
     #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
-    pub fn link_module_evm(buffers: &[&Self], buffer_ids: &[&str]) -> Result<(Self, Self), LLVMString> {
+    pub fn link_module_evm(
+        buffers: &[&Self],
+        buffer_ids: &[&str],
+        linker_symbols: &BTreeMap<String, [u8; Self::ETHEREUM_ADDRESS_SIZE]>,
+    ) -> Result<(Self, Self), LLVMString> {
         let mut output_buffers = [ptr::null_mut() as LLVMMemoryBufferRef; 2];
         let mut err_string = MaybeUninit::uninit();
 
@@ -160,12 +165,28 @@ impl MemoryBuffer {
         let buffer_ids: Vec<*const ::libc::c_char> =
             buffer_ids.iter().map(|id| to_c_str(id.as_str()).as_ptr()).collect();
 
+        let linker_symbol_keys: Vec<String> = linker_symbols
+            .keys()
+            .map(|key| crate::support::to_null_terminated_owned(key.as_str()))
+            .collect();
+        let linker_symbol_keys: Vec<*const ::libc::c_char> = linker_symbol_keys
+            .iter()
+            .map(|key| to_c_str(key.as_str()).as_ptr())
+            .collect();
+        let linker_symbol_values = linker_symbols
+            .values()
+            .cloned()
+            .collect::<Vec<[u8; Self::ETHEREUM_ADDRESS_SIZE]>>();
+
         let return_code = unsafe {
             LLVMLinkEVM(
                 buffer_ptrs.as_ptr() as *const LLVMMemoryBufferRef,
                 buffer_ids.as_ptr(),
                 buffer_ptrs.len() as u64,
                 output_buffers.as_mut_ptr() as *mut [LLVMMemoryBufferRef; 2],
+                linker_symbol_keys.as_ptr(),
+                linker_symbol_values.as_ptr() as *const ::libc::c_char,
+                linker_symbols.len() as u64,
                 err_string.as_mut_ptr(),
             )
         };
@@ -180,6 +201,14 @@ impl MemoryBuffer {
             let [deploy_buffer, runtime_buffer] = output_buffers;
             Ok((MemoryBuffer::new(deploy_buffer), MemoryBuffer::new(runtime_buffer)))
         }
+    }
+
+    /// Checks if the EraVM memory buffer is a valid ELF object.
+    #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
+    pub fn is_elf_evm(&self) -> bool {
+        let return_code = unsafe { LLVMIsELFEVM(self.memory_buffer) };
+
+        return_code != 0
     }
 
     /// Translates textual assembly to the object code.
@@ -232,7 +261,7 @@ impl MemoryBuffer {
         Ok(unsafe { Self::new(output_buffer) })
     }
 
-    /// Checks if the memory buffer is a valid ELF object.
+    /// Checks if the EraVM memory buffer is a valid ELF object.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
     pub fn is_elf_eravm(&self) -> bool {
         let return_code = unsafe { LLVMIsELFEraVM(self.memory_buffer) };
@@ -306,7 +335,7 @@ impl MemoryBuffer {
             vec![]
         };
         unsafe {
-            LLVMDisposeUndefinedReferencesEraVM(
+            LLVMDisposeUndefinedReferences(
                 linker_symbols_buffer as *const *const ::libc::c_char,
                 linker_symbols_size,
             );
@@ -326,7 +355,7 @@ impl MemoryBuffer {
             vec![]
         };
         unsafe {
-            LLVMDisposeUndefinedReferencesEraVM(
+            LLVMDisposeUndefinedReferences(
                 factory_dependencies_buffer as *const *const ::libc::c_char,
                 factory_dependencies_size,
             );
