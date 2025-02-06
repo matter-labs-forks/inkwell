@@ -4,9 +4,9 @@ use llvm_sys::core::{
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
 use llvm_sys::linker::{
-    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeUndefinedReferences,
-    LLVMExceedsSizeLimitEraVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM,
-    LLVMLinkEraVM,
+    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeImmutablesEVM,
+    LLVMDisposeUndefinedReferences, LLVMExceedsSizeLimitEraVM, LLVMGetImmutablesEVM, LLVMGetUndefinedReferencesEraVM,
+    LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
 use llvm_sys::object::LLVMCreateObjectFile;
 use llvm_sys::prelude::LLVMMemoryBufferRef;
@@ -17,6 +17,7 @@ use crate::support::{to_c_str, LLVMString};
 use crate::targets::TargetMachine;
 
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::mem::{forget, MaybeUninit};
 use std::path::Path;
 use std::ptr;
@@ -144,6 +145,60 @@ impl MemoryBuffer {
         }
 
         unsafe { Ok(ObjectFile::new(object_file)) }
+    }
+
+    /// Returns immutables and their offsets.
+    #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
+    pub fn get_immutables_evm(&self) -> BTreeMap<String, BTreeSet<u64>> {
+        let mut immutable_ids_buffer = ptr::null_mut();
+        let mut immutable_offsets_buffer = ptr::null_mut();
+        let immutables_size = unsafe {
+            LLVMGetImmutablesEVM(
+                self.memory_buffer,
+                &mut immutable_ids_buffer,
+                &mut immutable_offsets_buffer,
+            )
+        };
+
+        let immutable_ids = if immutables_size != 0 {
+            let immutable_ids_buffer_slice =
+                unsafe { slice::from_raw_parts(immutable_ids_buffer, immutables_size as usize) };
+            let immutable_ids = immutable_ids_buffer_slice
+                .iter()
+                .map(|&value| unsafe {
+                    String::from(::std::ffi::CStr::from_ptr(value).to_str().expect("Always valid"))
+                })
+                .collect();
+            immutable_ids
+        } else {
+            vec![]
+        };
+        let immutable_offsets = if immutables_size != 0 {
+            let immutable_offsets_buffer_slice =
+                unsafe { slice::from_raw_parts(immutable_offsets_buffer, immutables_size as usize) };
+            let immutable_offsets = immutable_offsets_buffer_slice.iter().map(|&value| value).collect();
+            immutable_offsets
+        } else {
+            vec![]
+        };
+
+        let immutables_map: BTreeMap<String, BTreeSet<u64>> = immutable_ids
+            .into_iter()
+            .zip(immutable_offsets.into_iter())
+            .fold(BTreeMap::new(), |mut accumulator, (id, offset)| {
+                accumulator.entry(id).or_insert_with(BTreeSet::new).insert(offset);
+                accumulator
+            });
+
+        unsafe {
+            LLVMDisposeImmutablesEVM(
+                immutable_ids_buffer as *const *const ::libc::c_char,
+                immutable_offsets_buffer as *const u64,
+                immutables_size,
+            );
+        }
+
+        immutables_map
     }
 
     /// Links EVM modules.
