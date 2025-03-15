@@ -28,6 +28,12 @@ pub struct MemoryBuffer {
     pub(crate) memory_buffer: LLVMMemoryBufferRef,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CodeSegment {
+    Deploy,
+    Runtime,
+}
+
 impl MemoryBuffer {
     pub const ETHEREUM_ADDRESS_SIZE: usize = 20;
 
@@ -203,7 +209,7 @@ impl MemoryBuffer {
 
     /// Assembles EVM dependencies.
     #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
-    pub fn assembly_evm(buffers: &[&Self], buffer_ids: &[&str]) -> Result<Self, LLVMString> {
+    pub fn assembly_evm(buffers: &[&Self], buffer_ids: &[&str], code_segment: CodeSegment) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
 
@@ -216,8 +222,14 @@ impl MemoryBuffer {
         let buffer_ids: Vec<*const ::libc::c_char> =
             buffer_ids.iter().map(|id| to_c_str(id.as_str()).as_ptr()).collect();
 
+        let code_segment = match code_segment {
+            CodeSegment::Deploy => 0,
+            CodeSegment::Runtime => 1,
+        };
+
         let return_code = unsafe {
             LLVMAssembleEVM(
+                code_segment,
                 buffer_ptrs.as_ptr() as *const LLVMMemoryBufferRef,
                 buffer_ids.as_ptr(),
                 buffer_ptrs.len() as u64,
