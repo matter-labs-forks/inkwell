@@ -4,7 +4,7 @@ use llvm_sys::core::{
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
 use llvm_sys::linker::{
-    LLVMAddMetadataEraVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeImmutablesEVM,
+    LLVMAddMetadataEraVM, LLVMAssembleEVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeImmutablesEVM,
     LLVMDisposeUndefinedReferences, LLVMExceedsSizeLimitEraVM, LLVMGetImmutablesEVM, LLVMGetUndefinedReferencesEraVM,
     LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
@@ -26,6 +26,12 @@ use std::slice;
 #[derive(Debug)]
 pub struct MemoryBuffer {
     pub(crate) memory_buffer: LLVMMemoryBufferRef,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CodeSegment {
+    Deploy,
+    Runtime,
 }
 
 impl MemoryBuffer {
@@ -201,14 +207,10 @@ impl MemoryBuffer {
         immutables_map
     }
 
-    /// Links EVM modules.
+    /// Assembles EVM dependencies.
     #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
-    pub fn link_module_evm(
-        buffers: &[&Self],
-        buffer_ids: &[&str],
-        linker_symbols: &BTreeMap<String, [u8; Self::ETHEREUM_ADDRESS_SIZE]>,
-    ) -> Result<(Self, Self), LLVMString> {
-        let mut output_buffers = [ptr::null_mut() as LLVMMemoryBufferRef; 2];
+    pub fn assembly_evm(buffers: &[&Self], buffer_ids: &[&str], code_segment: CodeSegment) -> Result<Self, LLVMString> {
+        let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
 
         let buffer_ptrs: Vec<LLVMMemoryBufferRef> = buffers.iter().map(|buffer| buffer.memory_buffer).collect();
@@ -219,6 +221,40 @@ impl MemoryBuffer {
             .collect();
         let buffer_ids: Vec<*const ::libc::c_char> =
             buffer_ids.iter().map(|id| to_c_str(id.as_str()).as_ptr()).collect();
+
+        let code_segment = match code_segment {
+            CodeSegment::Deploy => 0,
+            CodeSegment::Runtime => 1,
+        };
+
+        let return_code = unsafe {
+            LLVMAssembleEVM(
+                code_segment,
+                buffer_ptrs.as_ptr() as *const LLVMMemoryBufferRef,
+                buffer_ids.as_ptr(),
+                buffer_ptrs.len() as u64,
+                &mut output_buffer,
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
+        }
+
+        Ok(unsafe { MemoryBuffer::new(output_buffer) })
+    }
+
+    /// Links the EVM module.
+    #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
+    pub fn link_evm(
+        &self,
+        linker_symbols: &BTreeMap<String, [u8; Self::ETHEREUM_ADDRESS_SIZE]>,
+    ) -> Result<Self, LLVMString> {
+        let mut output_buffer = ptr::null_mut();
+        let mut err_string = MaybeUninit::uninit();
 
         let linker_symbol_keys: Vec<String> = linker_symbols
             .keys()
@@ -235,10 +271,8 @@ impl MemoryBuffer {
 
         let return_code = unsafe {
             LLVMLinkEVM(
-                buffer_ptrs.as_ptr() as *const LLVMMemoryBufferRef,
-                buffer_ids.as_ptr(),
-                buffer_ptrs.len() as u64,
-                output_buffers.as_mut_ptr() as *mut [LLVMMemoryBufferRef; 2],
+                self.memory_buffer,
+                &mut output_buffer,
                 linker_symbol_keys.as_ptr(),
                 linker_symbol_values.as_ptr() as *const ::libc::c_char,
                 linker_symbols.len() as u64,
@@ -252,10 +286,7 @@ impl MemoryBuffer {
             }
         }
 
-        unsafe {
-            let [deploy_buffer, runtime_buffer] = output_buffers;
-            Ok((MemoryBuffer::new(deploy_buffer), MemoryBuffer::new(runtime_buffer)))
-        }
+        Ok(unsafe { MemoryBuffer::new(output_buffer) })
     }
 
     /// Checks if the EraVM memory buffer is a valid ELF object.
@@ -421,7 +452,7 @@ impl MemoryBuffer {
 
     /// Links the EraVM module.
     #[cfg(all(feature = "target-eravm", feature = "llvm17-0"))]
-    pub fn link_module_eravm(
+    pub fn link_eravm(
         &self,
         linker_symbols: &BTreeMap<String, [u8; Self::ETHEREUM_ADDRESS_SIZE]>,
         factory_dependencies: &BTreeMap<String, [u8; Self::ERAVM_WORD_SIZE]>,
