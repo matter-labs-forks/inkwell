@@ -4,7 +4,7 @@ use llvm_sys::core::{
     LLVMGetBufferSize, LLVMGetBufferStart,
 };
 use llvm_sys::linker::{
-    LLVMAddMetadataEraVM, LLVMAssembleEVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeImmutablesEVM,
+    LLVMAddMetadata, LLVMAssembleEVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeImmutablesEVM,
     LLVMDisposeUndefinedReferences, LLVMExceedsSizeLimitEraVM, LLVMGetImmutablesEVM, LLVMGetUndefinedReferencesEraVM,
     LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
@@ -207,9 +207,36 @@ impl MemoryBuffer {
         immutables_map
     }
 
+    /// Appends metadata to the EVM module.
+    #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
+    pub fn append_metadata_evm(&self, metadata: &[u8]) -> Result<Self, LLVMString> {
+        let mut output_buffer = ptr::null_mut();
+        let mut err_string = MaybeUninit::uninit();
+
+        let metadata_ptr = metadata.as_ptr() as *const ::libc::c_char;
+
+        let return_code = unsafe {
+            LLVMAddMetadata(
+                self.memory_buffer,
+                metadata_ptr,
+                metadata.len() as u64,
+                &mut output_buffer,
+                err_string.as_mut_ptr(),
+            )
+        };
+
+        if return_code == 1 {
+            unsafe {
+                return Err(LLVMString::new(err_string.assume_init()));
+            }
+        }
+
+        Ok(unsafe { Self::new(output_buffer) })
+    }
+
     /// Assembles EVM dependencies.
     #[cfg(all(feature = "target-evm", feature = "llvm17-0"))]
-    pub fn assembly_evm(buffers: &[&Self], buffer_ids: &[&str], code_segment: CodeSegment) -> Result<Self, LLVMString> {
+    pub fn assemble_evm(buffers: &[&Self], buffer_ids: &[&str], code_segment: CodeSegment) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
 
@@ -364,7 +391,7 @@ impl MemoryBuffer {
         let metadata_ptr = metadata.as_ptr() as *const ::libc::c_char;
 
         let return_code = unsafe {
-            LLVMAddMetadataEraVM(
+            LLVMAddMetadata(
                 self.memory_buffer,
                 metadata_ptr,
                 metadata.len() as u64,
