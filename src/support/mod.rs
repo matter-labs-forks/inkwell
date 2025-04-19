@@ -6,7 +6,9 @@ use libc::c_char;
 use llvm_sys::core::LLVMGetVersion;
 use llvm_sys::core::{LLVMCreateMessage, LLVMDisposeMessage};
 use llvm_sys::error_handling::LLVMEnablePrettyStackTrace;
-use llvm_sys::support::{LLVMLoadLibraryPermanently, LLVMSearchForAddressOfSymbol};
+use llvm_sys::support::{
+    LLVMLoadLibraryPermanently, LLVMParseCommandLineOptions, LLVMPrintCommitIDTo, LLVMSearchForAddressOfSymbol,
+};
 
 use std::borrow::Cow;
 use std::error::Error;
@@ -139,6 +141,20 @@ pub fn get_llvm_version() -> (u32, u32, u32) {
     (major, minor, patch)
 }
 
+pub fn parse_command_line_options(args: &[&str], overview: &str) {
+    let argc = args.len() as i32;
+
+    let args: Vec<String> = args.into_iter().map(|arg| to_null_terminated_owned(*arg)).collect();
+    let args: Vec<*const ::libc::c_char> = args.iter().map(|arg| to_c_str(arg.as_str()).as_ptr()).collect();
+
+    let overview = to_null_terminated_owned(overview);
+    let overview = to_c_str(overview.as_str());
+
+    unsafe {
+        LLVMParseCommandLineOptions(argc, args.as_ptr(), overview.as_ptr());
+    }
+}
+
 /// Possible errors that can occur when loading a library
 #[derive(thiserror::Error, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LoadLibraryError {
@@ -154,7 +170,8 @@ pub enum LoadLibraryError {
 ///
 /// It is safe to call this function multiple times for the same library.
 pub fn load_library_permanently(path: &Path) -> Result<(), LoadLibraryError> {
-    let filename = to_c_str(path.to_str().ok_or(LoadLibraryError::UnicodeError)?);
+    let filename = to_null_terminated_owned(path.to_str().ok_or(LoadLibraryError::UnicodeError)?);
+    let filename = to_c_str(filename.as_str());
 
     let error = unsafe { LLVMLoadLibraryPermanently(filename.as_ptr()) == 1 };
     if error {
@@ -197,12 +214,30 @@ fn test_load_visible_symbols() {
     assert!(search_for_address_of_symbol("malloc").is_some());
 }
 
+pub fn get_commit_id() -> LLVMString {
+    const COMMIT_HASH_LENGTH: usize = 40;
+
+    let mut buffer = vec![0u8; COMMIT_HASH_LENGTH + 1];
+
+    unsafe { LLVMPrintCommitIDTo(buffer.as_mut_ptr() as *mut ::libc::c_char) };
+    LLVMString::create_from_str(String::from_utf8_lossy(&buffer[..COMMIT_HASH_LENGTH + 1]).as_ref())
+}
+
 /// Determines whether or not LLVM has been configured to run in multithreaded mode. (Inkwell currently does
 /// not officially support multithreaded mode)
 pub fn is_multithreaded() -> bool {
     use llvm_sys::core::LLVMIsMultithreaded;
 
     unsafe { LLVMIsMultithreaded() == 1 }
+}
+
+/// Adds a null byte to the end of a Rust string if it doesn't already have one.
+pub(crate) fn to_null_terminated_owned(s: &str) -> String {
+    if let Some(p) = s.rfind('\0') {
+        s[..=p].to_string()
+    } else {
+        format!("{s}\0")
+    }
 }
 
 pub fn enable_llvm_pretty_stack_trace() {

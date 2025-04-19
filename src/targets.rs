@@ -823,6 +823,76 @@ impl Target {
         }
     }
 
+    #[cfg(feature = "target-eravm")]
+    pub fn initialize_eravm(config: &InitializationConfig) {
+        use llvm_sys::target::{
+            LLVMInitializeEraVMAsmParser, LLVMInitializeEraVMAsmPrinter, LLVMInitializeEraVMDisassembler,
+            LLVMInitializeEraVMTarget, LLVMInitializeEraVMTargetInfo, LLVMInitializeEraVMTargetMC,
+        };
+
+        if config.base {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEraVMTarget() };
+        }
+
+        if config.info {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEraVMTargetInfo() };
+        }
+
+        if config.asm_printer {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEraVMAsmPrinter() };
+        }
+
+        if config.asm_parser {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEraVMAsmParser() };
+        }
+
+        if config.disassembler {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEraVMDisassembler() };
+        }
+
+        if config.machine_code {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEraVMTargetMC() };
+        }
+    }
+
+    #[cfg(feature = "target-evm")]
+    pub fn initialize_evm(config: &InitializationConfig) {
+        use llvm_sys::target::{
+            LLVMInitializeEVMAsmParser, LLVMInitializeEVMAsmPrinter, LLVMInitializeEVMDisassembler,
+            LLVMInitializeEVMTarget, LLVMInitializeEVMTargetInfo, LLVMInitializeEVMTargetMC,
+        };
+
+        if config.base {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMTarget() };
+        }
+
+        if config.info {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMTargetInfo() };
+        }
+
+        if config.asm_printer {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMAsmPrinter() };
+        }
+
+        // No asm parser
+
+        // No disassembler
+
+        if config.machine_code {
+            let _guard = TARGET_LOCK.write();
+            unsafe { LLVMInitializeEVMTargetMC() };
+        }
+    }
+
     pub fn initialize_native(config: &InitializationConfig) -> Result<(), String> {
         use llvm_sys::target::{
             LLVM_InitializeNativeAsmParser, LLVM_InitializeNativeAsmPrinter, LLVM_InitializeNativeDisassembler,
