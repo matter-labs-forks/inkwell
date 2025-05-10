@@ -5,8 +5,8 @@ use llvm_sys::core::{
 };
 use llvm_sys::linker::{
     LLVMAddMetadata, LLVMAssembleEVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeImmutablesEVM,
-    LLVMDisposeUndefinedReferences, LLVMExceedsSizeLimitEraVM, LLVMGetImmutablesEVM, LLVMGetUndefinedReferencesEraVM,
-    LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
+    LLVMDisposeSymbolOffsetsEVM, LLVMDisposeUndefinedReferences, LLVMExceedsSizeLimitEraVM, LLVMGetImmutablesEVM,
+    LLVMGetSymbolOffsetsEVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
 #[allow(deprecated)]
 use llvm_sys::object::LLVMCreateObjectFile;
@@ -207,6 +207,34 @@ impl MemoryBuffer {
         }
 
         immutables_map
+    }
+
+    /// Returns offsets of the specified linker symbol.
+    #[cfg(all(feature = "target-evm"))]
+    pub fn get_symbol_offsets_evm(&self, symbol: &str) -> Vec<u64> {
+        let mut symbol_offsets_buffer = ptr::null_mut();
+        let symbol_offsets_size = unsafe {
+            LLVMGetSymbolOffsetsEVM(
+                self.memory_buffer,
+                symbol.as_ptr() as *const ::libc::c_char,
+                &mut symbol_offsets_buffer,
+            )
+        };
+
+        let symbol_offset_offsets = if symbol_offsets_size != 0 {
+            let symbol_offset_offsets_buffer_slice =
+                unsafe { slice::from_raw_parts(symbol_offsets_buffer, symbol_offsets_size as usize) };
+            let symbol_offset_offsets = symbol_offset_offsets_buffer_slice.iter().map(|&value| value).collect();
+            symbol_offset_offsets
+        } else {
+            vec![]
+        };
+
+        unsafe {
+            LLVMDisposeSymbolOffsetsEVM(symbol_offsets_buffer as *const u64);
+        }
+
+        symbol_offset_offsets
     }
 
     /// Appends metadata to the EVM module.
