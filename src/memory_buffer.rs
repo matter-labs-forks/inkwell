@@ -5,8 +5,9 @@ use llvm_sys::core::{
 };
 use llvm_sys::linker::{
     LLVMAddMetadata, LLVMAssembleEVM, LLVMAssembleEraVM, LLVMDisassembleEraVM, LLVMDisposeImmutablesEVM,
-    LLVMDisposeUndefinedReferences, LLVMExceedsSizeLimitEraVM, LLVMGetImmutablesEVM, LLVMGetUndefinedReferencesEraVM,
-    LLVMIsELFEVM, LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
+    LLVMDisposeSymbolOffsetsEVM, LLVMDisposeUndefinedReferences, LLVMExceedsSizeLimitEraVM, LLVMGetImmutablesEVM,
+    LLVMGetSymbolOffsetsEVM, LLVMGetUndefinedReferencesEVM, LLVMGetUndefinedReferencesEraVM, LLVMIsELFEVM,
+    LLVMIsELFEraVM, LLVMLinkEVM, LLVMLinkEraVM,
 };
 #[allow(deprecated)]
 use llvm_sys::object::LLVMCreateObjectFile;
@@ -207,6 +208,64 @@ impl MemoryBuffer {
         }
 
         immutables_map
+    }
+
+    /// Returns undefined references from an EVM ELF wrapper.
+    #[cfg(all(feature = "target-evm"))]
+    pub fn get_undefined_references_evm(&self) -> Vec<String> {
+        let mut linker_symbols_buffer = ptr::null_mut();
+        let mut linker_symbols_size: u64 = 0;
+        unsafe {
+            LLVMGetUndefinedReferencesEVM(self.memory_buffer, &mut linker_symbols_buffer, &mut linker_symbols_size)
+        };
+
+        let linker_symbols = if linker_symbols_size != 0 {
+            let linker_symbols_buffer_slice =
+                unsafe { slice::from_raw_parts(linker_symbols_buffer, linker_symbols_size as usize) };
+            let linker_symbols = linker_symbols_buffer_slice
+                .iter()
+                .map(|&value| unsafe {
+                    String::from(::std::ffi::CStr::from_ptr(value).to_str().expect("Always valid"))
+                })
+                .collect();
+            linker_symbols
+        } else {
+            vec![]
+        };
+        unsafe {
+            LLVMDisposeUndefinedReferences(
+                linker_symbols_buffer as *const *const ::libc::c_char,
+                linker_symbols_size,
+            );
+        }
+
+        linker_symbols
+    }
+
+    /// Returns offsets of the specified linker symbol.
+    #[cfg(all(feature = "target-evm"))]
+    pub fn get_symbol_offsets_evm(&self, symbol: &str) -> Vec<u64> {
+        let symbol = crate::support::to_null_terminated_owned(symbol);
+        let symbol_ptr = to_c_str(symbol.as_str());
+
+        let mut symbol_offsets_buffer = ptr::null_mut();
+        let symbol_offsets_size =
+            unsafe { LLVMGetSymbolOffsetsEVM(self.memory_buffer, symbol_ptr.as_ptr(), &mut symbol_offsets_buffer) };
+
+        let symbol_offset_offsets = if symbol_offsets_size != 0 {
+            let symbol_offset_offsets_buffer_slice =
+                unsafe { slice::from_raw_parts(symbol_offsets_buffer, symbol_offsets_size as usize) };
+            let symbol_offset_offsets = symbol_offset_offsets_buffer_slice.iter().map(|&value| value).collect();
+            symbol_offset_offsets
+        } else {
+            vec![]
+        };
+
+        unsafe {
+            LLVMDisposeSymbolOffsetsEVM(symbol_offsets_buffer as *const u64);
+        }
+
+        symbol_offset_offsets
     }
 
     /// Appends metadata to the EVM module.
@@ -419,7 +478,7 @@ impl MemoryBuffer {
         return_code != 0
     }
 
-    /// Returns undefined references of the ELF wrapper.
+    /// Returns undefined references from an EraVM ELF wrapper.
     #[cfg(all(feature = "target-eravm"))]
     pub fn get_undefined_references_eravm(&self) -> (Vec<String>, Vec<String>) {
         let mut linker_symbols_buffer = ptr::null_mut();
