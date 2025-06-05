@@ -19,10 +19,11 @@ use llvm_sys::core::{
     LLVMAppendBasicBlockInContext, LLVMConstStringInContext, LLVMConstStructInContext, LLVMContextCreate,
     LLVMContextDispose, LLVMContextSetDiagnosticHandler, LLVMCreateBuilderInContext, LLVMCreateEnumAttribute,
     LLVMCreateStringAttribute, LLVMDoubleTypeInContext, LLVMFP128TypeInContext, LLVMFloatTypeInContext,
-    LLVMGetGlobalContext, LLVMGetMDKindIDInContext, LLVMHalfTypeInContext, LLVMInsertBasicBlockInContext,
-    LLVMInt16TypeInContext, LLVMInt1TypeInContext, LLVMInt32TypeInContext, LLVMInt64TypeInContext,
-    LLVMInt8TypeInContext, LLVMIntTypeInContext, LLVMModuleCreateWithNameInContext, LLVMPPCFP128TypeInContext,
-    LLVMStructCreateNamed, LLVMStructTypeInContext, LLVMVoidTypeInContext, LLVMX86FP80TypeInContext,
+    LLVMGetGlobalContext, LLVMGetMDKindIDInContext, LLVMGetSpillAreaSizeEVM, LLVMHalfTypeInContext,
+    LLVMInsertBasicBlockInContext, LLVMInt16TypeInContext, LLVMInt1TypeInContext, LLVMInt32TypeInContext,
+    LLVMInt64TypeInContext, LLVMInt8TypeInContext, LLVMIntTypeInContext, LLVMModuleCreateWithNameInContext,
+    LLVMPPCFP128TypeInContext, LLVMStructCreateNamed, LLVMStructTypeInContext, LLVMVoidTypeInContext,
+    LLVMX86FP80TypeInContext,
 };
 #[allow(deprecated)]
 use llvm_sys::core::{LLVMMDNodeInContext, LLVMMDStringInContext};
@@ -1313,6 +1314,12 @@ impl Context {
     #[inline]
     pub fn const_string(&self, string: &[u8], null_terminated: bool) -> ArrayValue {
         self.context.const_string(string, null_terminated)
+    }
+
+    /// Gets the size of the spill area required for recompilation of an EVM translation unit.
+    #[cfg(all(feature = "target-evm"))]
+    pub fn get_spill_area_size(&self) -> u64 {
+        unsafe { LLVMGetSpillAreaSizeEVM(self.context.0) }
     }
 
     #[allow(dead_code)]
