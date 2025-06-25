@@ -161,7 +161,7 @@ llvm-sys-150 = { package = "llvm-sys", version = "150.0.3", optional = true }
 llvm-sys-160 = { package = "llvm-sys", version = "160.1.0", optional = true }
 llvm-sys-170 = { package = "llvm-sys", version = "170.2.0", optional = true }
 llvm-sys-180 = { package = "llvm-sys", version = "181.2.0", optional = true }
-llvm-sys-191 = { git = "https://github.com/matter-labs-forks/llvm-sys.rs", package = "llvm-sys", branch = "az-stack-never-too-deep", optional = true }
+llvm-sys-191 = { git = "https://github.com/matter-labs-forks/llvm-sys.rs", package = "llvm-sys", branch = "llvm-19", optional = true }
 
 either = "1.5"
 libc = "0.2"

@@ -19,11 +19,11 @@ use llvm_sys::core::{
     LLVMAppendBasicBlockInContext, LLVMConstStringInContext, LLVMConstStructInContext, LLVMContextCreate,
     LLVMContextDispose, LLVMContextSetDiagnosticHandler, LLVMCreateBuilderInContext, LLVMCreateEnumAttribute,
     LLVMCreateStringAttribute, LLVMDoubleTypeInContext, LLVMFP128TypeInContext, LLVMFloatTypeInContext,
-    LLVMGetGlobalContext, LLVMGetMDKindIDInContext, LLVMGetSpillAreaSizeEVM, LLVMHalfTypeInContext,
-    LLVMInsertBasicBlockInContext, LLVMInt16TypeInContext, LLVMInt1TypeInContext, LLVMInt32TypeInContext,
+    LLVMGetGlobalContext, LLVMGetMDKindIDInContext, LLVMHalfTypeInContext, LLVMInsertBasicBlockInContext,
+    LLVMInstallEVMStackErrorHandler, LLVMInt16TypeInContext, LLVMInt1TypeInContext, LLVMInt32TypeInContext,
     LLVMInt64TypeInContext, LLVMInt8TypeInContext, LLVMIntTypeInContext, LLVMModuleCreateWithNameInContext,
-    LLVMPPCFP128TypeInContext, LLVMStructCreateNamed, LLVMStructTypeInContext, LLVMVoidTypeInContext,
-    LLVMX86FP80TypeInContext,
+    LLVMPPCFP128TypeInContext, LLVMStackErrorHandlerEVM, LLVMStructCreateNamed, LLVMStructTypeInContext,
+    LLVMVoidTypeInContext, LLVMX86FP80TypeInContext,
 };
 #[allow(deprecated)]
 use llvm_sys::core::{LLVMMDNodeInContext, LLVMMDStringInContext};
@@ -1316,10 +1316,10 @@ impl Context {
         self.context.const_string(string, null_terminated)
     }
 
-    /// Gets the size of the spill area required for recompilation of an EVM translation unit.
-    #[cfg(all(feature = "target-evm"))]
-    pub fn get_spill_area_size(&self) -> u64 {
-        unsafe { LLVMGetSpillAreaSizeEVM(self.context.0) }
+    /// Sets the callback for handling EVM stack-too-deep errors.
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
+    pub fn install_stack_error_handler(handler: LLVMStackErrorHandlerEVM) {
+        unsafe { LLVMInstallEVMStackErrorHandler(handler) }
     }
 
     #[allow(dead_code)]
