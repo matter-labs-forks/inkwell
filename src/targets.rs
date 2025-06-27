@@ -861,7 +861,7 @@ impl Target {
         }
     }
 
-    #[cfg(feature = "target-evm")]
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
     pub fn initialize_evm(config: &InitializationConfig) {
         use llvm_sys::target::{
             LLVMInitializeEVMAsmParser, LLVMInitializeEVMAsmPrinter, LLVMInitializeEVMDisassembler,

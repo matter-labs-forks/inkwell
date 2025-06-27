@@ -157,7 +157,7 @@ impl MemoryBuffer {
     }
 
     /// Returns immutables and their offsets.
-    #[cfg(all(feature = "target-evm"))]
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
     pub fn get_immutables_evm(&self) -> BTreeMap<String, BTreeSet<u64>> {
         let mut immutable_ids_buffer = ptr::null_mut();
         let mut immutable_offsets_buffer = ptr::null_mut();
@@ -211,7 +211,7 @@ impl MemoryBuffer {
     }
 
     /// Returns undefined references from an EVM ELF wrapper.
-    #[cfg(all(feature = "target-evm"))]
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
     pub fn get_undefined_references_evm(&self) -> Vec<String> {
         let mut linker_symbols_buffer = ptr::null_mut();
         let mut linker_symbols_size: u64 = 0;
@@ -243,7 +243,7 @@ impl MemoryBuffer {
     }
 
     /// Returns offsets of the specified linker symbol.
-    #[cfg(all(feature = "target-evm"))]
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
     pub fn get_symbol_offsets_evm(&self, symbol: &str) -> Vec<u64> {
         let symbol = crate::support::to_null_terminated_owned(symbol);
         let symbol_ptr = to_c_str(symbol.as_str());
@@ -269,7 +269,7 @@ impl MemoryBuffer {
     }
 
     /// Appends metadata to the EVM module.
-    #[cfg(all(feature = "target-evm"))]
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
     pub fn append_metadata_evm(&self, metadata: &[u8]) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
@@ -296,7 +296,7 @@ impl MemoryBuffer {
     }
 
     /// Assembles EVM dependencies.
-    #[cfg(all(feature = "target-evm"))]
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
     pub fn assemble_evm(buffers: &[&Self], buffer_ids: &[&str], code_segment: CodeSegment) -> Result<Self, LLVMString> {
         let mut output_buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
@@ -336,7 +336,7 @@ impl MemoryBuffer {
     }
 
     /// Links the EVM module.
-    #[cfg(all(feature = "target-evm"))]
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
     pub fn link_evm(
         &self,
         linker_symbols: &BTreeMap<String, [u8; Self::ETHEREUM_ADDRESS_SIZE]>,
@@ -378,7 +378,7 @@ impl MemoryBuffer {
     }
 
     /// Checks if the EraVM memory buffer is a valid ELF object.
-    #[cfg(all(feature = "target-evm"))]
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
     pub fn is_elf_evm(&self) -> bool {
         let return_code = unsafe { LLVMIsELFEVM(self.memory_buffer) };
 

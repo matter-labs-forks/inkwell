@@ -20,9 +20,10 @@ use llvm_sys::core::{
     LLVMContextDispose, LLVMContextSetDiagnosticHandler, LLVMCreateBuilderInContext, LLVMCreateEnumAttribute,
     LLVMCreateStringAttribute, LLVMDoubleTypeInContext, LLVMFP128TypeInContext, LLVMFloatTypeInContext,
     LLVMGetGlobalContext, LLVMGetMDKindIDInContext, LLVMHalfTypeInContext, LLVMInsertBasicBlockInContext,
-    LLVMInt16TypeInContext, LLVMInt1TypeInContext, LLVMInt32TypeInContext, LLVMInt64TypeInContext,
-    LLVMInt8TypeInContext, LLVMIntTypeInContext, LLVMModuleCreateWithNameInContext, LLVMPPCFP128TypeInContext,
-    LLVMStructCreateNamed, LLVMStructTypeInContext, LLVMVoidTypeInContext, LLVMX86FP80TypeInContext,
+    LLVMInstallEVMStackErrorHandler, LLVMInt16TypeInContext, LLVMInt1TypeInContext, LLVMInt32TypeInContext,
+    LLVMInt64TypeInContext, LLVMInt8TypeInContext, LLVMIntTypeInContext, LLVMModuleCreateWithNameInContext,
+    LLVMPPCFP128TypeInContext, LLVMStackErrorHandlerEVM, LLVMStructCreateNamed, LLVMStructTypeInContext,
+    LLVMVoidTypeInContext, LLVMX86FP80TypeInContext,
 };
 #[allow(deprecated)]
 use llvm_sys::core::{LLVMMDNodeInContext, LLVMMDStringInContext};
@@ -1313,6 +1314,12 @@ impl Context {
     #[inline]
     pub fn const_string(&self, string: &[u8], null_terminated: bool) -> ArrayValue {
         self.context.const_string(string, null_terminated)
+    }
+
+    /// Sets the callback for handling EVM stack-too-deep errors.
+    #[cfg(all(feature = "llvm19-1", feature = "target-evm"))]
+    pub fn install_stack_error_handler(handler: LLVMStackErrorHandlerEVM) {
+        unsafe { LLVMInstallEVMStackErrorHandler(handler) }
     }
 
     #[allow(dead_code)]
